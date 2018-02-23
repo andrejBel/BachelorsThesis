@@ -3,8 +3,9 @@
 
 #include "processing.h"
 
-#include "GpuTimer.h"
-#include "KernelBlackImage.h"
+#include <vector>
+#include "KernelSlowConvolution.cu"
+#include "Filter.cu"
 
 
 
@@ -20,12 +21,21 @@ static const string OUTPUT_IMAGE_PATH = "output_img.jpg";
 
 int main()
 {
+	vector< Filter<float> > filters;
+	filters.push_back(Filter<float>(3, 3, {
+											1.0,1.0,1.0,
+											1.0,1.0,1.0,
+											1.0,1.0,1.0
+										  }, 1.0 / 9.0));
+	KernelSlowConvolution<float> kernel(filters);
 	ImageFactory factory(INPUT_IMAGE_PATH);
-	KernelBlackImage kernel;
+	
+
+	
 	factory.run(&kernel);
 	
-	factory.copyDeviceGrayToHostGray();
-	//checkCudaErrors(cudaDeviceSynchronize());
+	//factory.copyDeviceGrayToHostGray();
+
 	imwrite(OUTPUT_IMAGE_PATH, factory.getHostGray());
 	return 0;
 }
