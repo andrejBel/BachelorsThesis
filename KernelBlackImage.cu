@@ -57,11 +57,11 @@ namespace processing
 	void KernelBlackImage::run(ImageFactory & image)
 	{
 
-		const int numberOfThreadsInBlock = 32;
+		const uint numberOfThreadsInBlock = 32;
 		const dim3 blockSize(numberOfThreadsInBlock, numberOfThreadsInBlock, 1);
 		const dim3 gridSize((image.getNumCols() + blockSize.x - 1) / blockSize.x, (image.getNumRows() + blockSize.y - 1) / blockSize.y, 1);
 		
-		nullGray << <gridSize, blockSize >> > (image.getDeviceGrayPointer(), image.getNumRows(), image.getNumCols());
+		nullGray <<<gridSize, blockSize >>> (image.getDeviceGrayPointer(), image.getNumRows(), image.getNumCols());
 	}
 
 
