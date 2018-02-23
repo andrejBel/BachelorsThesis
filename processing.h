@@ -10,6 +10,7 @@
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include "opencv2/core/utility.hpp"
 #include <opencv2/opencv.hpp>
 
 #include <string>
@@ -83,11 +84,13 @@ namespace processing
 
 		void copyDeviceGrayToHostGray();
 
+		void copyDeviceGrayToHostGray(uchar* devicePointer);
+
 		void saveRGBAImg(const string& filename);
 
 		void saveGrayImg(const string& filename);
 
-		void run(Runnable* r);
+		TickMeter run(Runnable* r);
 
 	private:
 		//attributes
@@ -99,26 +102,21 @@ namespace processing
 
 		//functions
 
-		template <typename T>
-		T* allocateMemmoryDevice(size_t size)
-		{
-			T* memory = nullptr;
-			checkCudaErrors(cudaMalloc((void **)&memory, size * sizeof(T)));
-			return memory;
-		}
-
-		void deallocateMemmoryDevice(void* pointer);
-
 	};
 
 
+	void deallocateMemmoryDevice(void* pointer);
 	
-	namespace kernels 
-	{
 
-		__global__ void nullGray(uchar * grayPtr, const size_t numPixels);
-	
+	template <typename T>
+	T* allocateMemmoryDevice(size_t size)
+	{
+		T* memory = nullptr;
+		checkCudaErrors(cudaMalloc((void **)&memory, size * sizeof(T)));
+		return memory;
 	}
+
 	
+
 
 }

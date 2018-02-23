@@ -49,7 +49,13 @@ namespace processing
 
 	void ImageFactory::copyDeviceGrayToHostGray()
 	{
-		checkCudaErrors(cudaMemcpy(getHostGrayPointer(), d_grayPointer_, h_imageGray_.rows * h_imageGray_.cols * sizeof(uchar), cudaMemcpyDeviceToHost));
+		copyDeviceGrayToHostGray(d_grayPointer_);
+		
+	}
+
+	void ImageFactory::copyDeviceGrayToHostGray(uchar * devicePointer)
+	{
+		checkCudaErrors(cudaMemcpy(getHostGrayPointer(), devicePointer, h_imageGray_.rows * h_imageGray_.cols * sizeof(uchar), cudaMemcpyDeviceToHost));
 	}
 
 	void ImageFactory::saveRGBAImg(const string & filename)
@@ -62,25 +68,18 @@ namespace processing
 		imwrite(filename, h_imageGray_);
 	}
 
-	void ImageFactory::run(Runnable * r)
+	TickMeter ImageFactory::run(Runnable * r)
 	{
+		TickMeter timer;
+		timer.start();
 		r->run(*this);
+		timer.stop();
+		return timer;
 	}
 
-	void ImageFactory::deallocateMemmoryDevice(void * pointer)
+	void deallocateMemmoryDevice(void * pointer)
 	{
 		checkCudaErrors(cudaFree(pointer));
 	}
 
-}
-
-
-
-
-__global__ void processing::kernels::nullGray(uchar * grayPtr, const size_t numPixels)
-{
-	for (size_t i = 0; i < numPixels; i++)
-	{
-		grayPtr[i] = 0;
-	}
 }
