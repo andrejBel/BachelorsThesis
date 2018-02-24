@@ -2,6 +2,7 @@
 #include "Runnable.h"
 #include <vector>
 #include "Filter.h"
+#include <memory>
 
 using namespace std;
 namespace processing 
@@ -13,14 +14,14 @@ namespace processing
 		static_assert(std::is_floating_point<T>::value, "Class KernelSlowConvolution can only be instantiazed with float, double or long double");
 	public:
 
-		KernelSlowConvolution(vector<Filter<T>>& filters);
+		KernelSlowConvolution(vector< shared_ptr<AbstractFilter <T>> >& filters);
 
-		DELETECOPYASSINGMENT(KernelSlowConvolution)
+		DELETECOPYASSINGMENT(KernelSlowConvolution<T>)
 
 		virtual void run(ImageFactory & image) override;
 
 	private:
-		vector<Filter<T>>& h_filters_;
+		vector< shared_ptr<AbstractFilter <T>> >& h_filters_;
 
 	};
 
