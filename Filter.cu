@@ -6,73 +6,42 @@
 #include <device_functions.h>
 #include <cuda_runtime_api.h>
 #include <processing.h>
+#include <algorithm>
 
 namespace processing 
 {
-
-	template<typename T>
-	Filter<T>::Filter(uint width, uint height, vector<T> filter, const T multiplier) :
-		multiplier_(multiplier),
-		width_(width),
-		height_(height),
-		d_filter_(nullptr),
-		h_filter_(filter)
+	template<typename T, int WIDTH>
+	Filter<T, WIDTH>::Filter(vector<T> filter, const T multiplier)
 	{
-		h_filter_.push_back(multiplier_);
-	}
-
-	template<typename T>
-	Filter<T>::Filter(uint width, uint height, const T * filter, const T multiplier):
-		multiplier_(multiplier),
-		width_(width),
-		height_(height),
-		d_filter_(nullptr),
-		h_filter_(width * height + 1)
-	{
-		for (size_t index = 0; index < width * height; index++)
+		std::copy(filter.data(), filter.data() + WIDTH*WIDTH, filter_);
+		if (multiplier != 1.0) 
 		{
-			h_filter_[index] = filter[index];
+			for (uint i = 0; i < WIDTH*WIDTH; ++i)
+			{
+				filter_[i] *= multiplier;
+			}
 		}
-		h_filter_[width * height] = multiplier;
 	}
 
-	template<typename T>
-	T * Filter<T>::getHostFilterPointer()
+	template<typename T, int WIDTH>
+	Filter<T, WIDTH>::Filter(T * filter, const T multiplier)
 	{
-		return h_filter_.data();
+		std::copy(filter, filter + WIDTH*WIDTH, filter_);
+		if (multiplier != 1.0)
+		{
+			for (uint i = 0; i < WIDTH*WIDTH; ++i)
+			{
+				filter_[i] *= multiplier;
+			}
+		}
 	}
 
-	template<typename T>
-	T * Filter<T>::getDeviceFilterPointer()
+	template<typename T, int WIDTH>
+	CPU void Filter<T, WIDTH>::copyWholeFilterToDeviceMemory(void * destination) const
 	{
-		return d_filter_;
+		checkCudaErrors(cudaMemcpy(destination, this, sizeof(Filter<T, WIDTH>), cudaMemcpyHostToDevice));
 	}
 
-	template<typename T>
-	void Filter<T>::allocateAndCopyHostFilterToDevice()
-	{
-		d_filter_ = allocateMemmoryDevice<T>(h_filter_.size() * sizeof(T));
-		checkCudaErrors(cudaMemcpy(d_filter_, h_filter_.data(), h_filter_.size() * sizeof(T), cudaMemcpyHostToDevice));
-	}
-
-	template<typename T>
-	void Filter<T>::deallocateDeviceFilter()
-	{
-		deallocateMemmoryDevice(d_filter_);
-		d_filter_ = nullptr;
-	}
-
-	template<typename T>
-	T Filter<T>::getMultiplier()
-	{
-		return multiplier_;
-	}
-
-	template<typename T>
-	Filter<T>::~Filter()
-	{
-		deallocateMemmoryDevice(d_filter_);
-	}
 
 
 }
