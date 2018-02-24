@@ -56,12 +56,12 @@ namespace processing
 			return d_grayPointer_;
 		}
 
-		inline size_t getNumRows() 
+		inline int getNumRows() 
 		{ 
 			return h_imageRGBA_.rows; 
 		}
 		
-		inline size_t getNumCols() 
+		inline int getNumCols()
 		{
 			return h_imageRGBA_.cols; 
 		}
