@@ -1,22 +1,11 @@
 #pragma once
 #include "Runnable.h"
+#include <vector>
+#include <memory>
 
 namespace processing
 {
-	class KernelBlackImage : public Runnable
-	{
-	public:
-		KernelBlackImage();
-
-		DELETECOPYASSINGMENT(KernelBlackImage)
-
-			virtual ~KernelBlackImage();
-
-
-		virtual void run(ImageFactory & image) override;
-
-	};
-
+	
 }
 
 

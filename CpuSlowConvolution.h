@@ -10,7 +10,7 @@ namespace processing
 {
 
 	template<typename T>
-	class CpuSlowConvolution : public Runnable
+	class CpuSlowConvolution : public Runnable<T>
 	{
 		static_assert(std::is_floating_point<T>::value, "Class KernelSlowConvolution can only be instantiazed with float, double or long double");
 	public:
@@ -19,7 +19,7 @@ namespace processing
 
 		DELETECOPYASSINGMENT(CpuSlowConvolution<T>)
 
-		virtual void run(ImageFactory & image) override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<T>>& results) override;
 
 	private:
 		vector< shared_ptr<AbstractFilter <T>> >& filters_;
