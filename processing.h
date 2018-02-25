@@ -14,8 +14,8 @@
 #include <opencv2/opencv.hpp>
 
 #include <string>
-
-
+#include <memory>
+#include <vector>
 
 using namespace std;
 using namespace cv;
@@ -24,7 +24,9 @@ using namespace cv;
 
 namespace processing 
 {
+	template <typename T>
 	class Runnable;
+
 	class ImageFactory
 	{
 	public:
@@ -34,86 +36,88 @@ namespace processing
 
 		ImageFactory& operator=(const ImageFactory& other) = delete;
 
-		~ImageFactory();
 
-		inline uchar4* getHostRGBAPointer() 
+		inline uchar4* getInputRGBAPointer() 
 		{
-			return reinterpret_cast<uchar4 *>(h_imageRGBA_.ptr<uchar>(0));
+			return reinterpret_cast<uchar4 *>(imageRGBAInput_.ptr<uchar>(0));
 		}
 
-		inline uchar4* getDeviceRGBAPointer() 
+		inline uchar* getInputGrayPointer()
 		{
-			return d_rGBAPointer_;
+			return imageGrayInput_.ptr<uchar>(0);
 		}
 
-		inline uchar* getHostGrayPointer()
+		inline uchar4* getOutputRGBAPointer()
 		{
-			return h_imageGray_.ptr<uchar>(0);
+			return reinterpret_cast<uchar4 *>(imageRGBAOutput_.ptr<uchar>(0));
 		}
 
-		inline uchar* getDeviceGrayPointer()
+		inline uchar* getOutputGrayPointer()
 		{
-			return d_grayPointer_;
+			return imageGrayOutput_.ptr<uchar>(0);
 		}
 
 		inline int getNumRows() 
 		{ 
-			return h_imageRGBA_.rows; 
+			return imageRGBAInput_.rows;
 		}
 		
 		inline int getNumCols()
 		{
-			return h_imageRGBA_.cols; 
+			return imageRGBAInput_.cols;
 		}
 
-		Mat& getHostRGBA() 
+		inline size_t getNumPixels() 
 		{
-			return h_imageRGBA_;
+			return imageRGBAInput_.cols * imageRGBAInput_.rows;
 		}
 
-		Mat& getHostGray()
+
+		void copyDeviceRGBAToHostRGBAOut(uchar4* devicePointer);
+
+		void copyDeviceGrayToHostGrayOut(uchar* devicePointer);
+
+		void saveRGBAImgOut(const string& filename);
+
+		void saveGrayImgOut(const string& filename);
+
+		template <typename T>
+		TickMeter run(Runnable<T>* r, vector<shared_ptr<T>>& results) 
 		{
-			return h_imageGray_;
+			TickMeter timer;
+			timer.start();
+			r->run(*this, results);
+			timer.stop();
+			return timer;
 		}
 
-		void copyHostRGBAToDeviceRGBA();
-
-		void copyDeviceRGBAToHostRGBA();
-
-		void copyHostGrayToDeviceGray();
-
-		void copyDeviceGrayToHostGray();
-
-		void copyDeviceGrayToHostGray(uchar* devicePointer);
-
-		void saveRGBAImg(const string& filename);
-
-		void saveGrayImg(const string& filename);
-
-		TickMeter run(Runnable* r);
 
 	private:
 		//attributes
-		cv::Mat h_imageRGBA_;
-		cv::Mat h_imageGray_;
+		cv::Mat imageRGBAInput_;
+		cv::Mat imageGrayInput_;
 
-		uchar4* d_rGBAPointer_;
-		uchar* d_grayPointer_;
-
-		//functions
+		cv::Mat imageRGBAOutput_;
+		cv::Mat imageGrayOutput_;
 
 	};
 
+
+	template<typename T>
+	inline shared_ptr<T> makeArray(size_t size)
+	{
+		return std::shared_ptr<T>(new T[size], [](T* p) { delete[] p; });
+	}
 
 	void deallocateMemmoryDevice(void* pointer);
 	
 
 	template <typename T>
-	T* allocateMemmoryDevice(size_t size)
+	shared_ptr<T> allocateMemmoryDevice(size_t size)
 	{
 		T* memory = nullptr;
 		checkCudaErrors(cudaMalloc((void **)&memory, size * sizeof(T)));
-		return memory;
+		return shared_ptr<T>(memory, [](T* p) {  checkCudaErrors(cudaFree(p)); });
 	}
 
 	
