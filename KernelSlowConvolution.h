@@ -18,14 +18,17 @@ namespace processing
 
 		DELETECOPYASSINGMENT(KernelSlowConvolution<T>)
 
-			virtual void run(ImageFactory& image, vector<shared_ptr<T>>& results)  override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<T>>& results)  override;
 
 	private:
 		vector< shared_ptr<AbstractFilter <T>> >& h_filters_;
 
+		int indexToCopyToMirrored(int index, int numCols, int numRows, const int filterWidth);
+
+
 	};
 
-	
+	__device__ __forceinline__ size_t indexInNew(int indexX, int indexY, int originalWidth, int originalHeight, int filterWidth);
 
 
 }

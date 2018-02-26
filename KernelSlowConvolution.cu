@@ -17,6 +17,8 @@
 #include <iostream>
 
 #include <thread>
+#include <algorithm>
+
 using namespace std;
 
 template <typename T>
@@ -59,8 +61,18 @@ namespace processing
 		return (b<a) ? a : b;
 	}
 
+	__device__ __forceinline__ size_t indexInNew(int indexX, int indexY, int originalWidth, int originalHeight, int filterWidth)
+	{
+		int newWidth = originalWidth + (filterWidth / 2) * 2;
+		indexX += filterWidth / 2;
+		indexY += filterWidth / 2;
+		return indexY * newWidth + indexX;
+	}
+	
+
+
 	template<typename T, typename int WIDTH>
-	__global__ void convolutionGPU(processing::Filter<T, WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage)
+	__global__ void convolutionGPU(processing::Filter<T, WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage, int maxFilterWidth)
 	{
 		int2 absoluteImagePosition;
 
@@ -82,12 +94,9 @@ namespace processing
 #pragma unroll
 			for (int xOffset = 0; xOffset < WIDTH; xOffset++)
 			{
-
 				pointPosition.x = absoluteImagePosition.x + xOffset - WIDTH / 2;
 				pointPosition.y = absoluteImagePosition.y + yOffset - WIDTH / 2;
-				pointPosition.x = min(max(pointPosition.x, 0), numCols - 1);
-				pointPosition.y = min(max(pointPosition.y, 0), numRows - 1);
-				result += filterV[yOffset*WIDTH + xOffset] * inputImage[pointPosition.y * numCols + pointPosition.x];
+				result += filterV[yOffset*WIDTH + xOffset] * inputImage[indexInNew(absoluteImagePosition.x + xOffset - WIDTH / 2, absoluteImagePosition.y + yOffset - WIDTH / 2, numCols, numRows, maxFilterWidth)];
 				//printf("Result: %f\n", result);
 			}
 		}
@@ -99,11 +108,25 @@ namespace processing
 
 
 	template<typename T>
+	int KernelSlowConvolution<T>::indexToCopyToMirrored(int index, int numCols, int numRows, const int filterWidth)
+	{
+		int indexX = (index % (numCols + (filterWidth / 2) * 2)) - (filterWidth / 2);
+		int indexY = (index / (numCols + (filterWidth / 2) * 2)) - (filterWidth / 2);
+		indexX = std::min(std::max(indexX, 0), numCols - 1);
+		indexY = std::min(std::max(indexY, 0), numRows - 1);
+		return indexY * numCols + indexX;
+	}
+
+	
+
+	template<typename T>
 	KernelSlowConvolution<T>::KernelSlowConvolution(vector<shared_ptr<AbstractFilter<T>>>& filters) :
 		h_filters_(filters)
 	{
 
 	}
+
+	
 
 	template<typename T>
 	void KernelSlowConvolution<T>::run(ImageFactory & image, vector<shared_ptr<T>>& results)
@@ -113,16 +136,31 @@ namespace processing
 		for_each(h_filters_.begin(), h_filters_.end(), [&memmoryToAllocateForFiltersOnDevice](auto& filter) { memmoryToAllocateForFiltersOnDevice += filter->getSize(); });
 		shared_ptr<uchar> deviceFilters = allocateMemmoryDevice<uchar>(memmoryToAllocateForFiltersOnDevice);
 		uint offset(0);
-		for_each(h_filters_.begin(), h_filters_.end(), [&deviceFilters, &offset](auto& filter)
+		int maxFilterWidth = 0;
+		for_each(h_filters_.begin(), h_filters_.end(), [&deviceFilters, &offset, &maxFilterWidth](auto& filter)
 		{
 			filter->copyWholeFilterToDeviceMemory(deviceFilters.get() + offset);
 			offset += filter->getSize();
+			if (maxFilterWidth < filter->getSize()) 
+			{
+				maxFilterWidth = filter->getSize();
+			}
 		});
 		// filter allocation and initialization
-		shared_ptr<uchar> deviceGrayImageIn = allocateMemmoryDevice<uchar>(image.getNumPixels());
 		shared_ptr<T> deviceGrayImageOut = allocateMemmoryDevice<T>(image.getNumPixels());
 		uchar* hostGrayImage = image.getInputGrayPointer();
-		checkCudaErrors(cudaMemcpy(deviceGrayImageIn.get(), hostGrayImage, image.getNumPixels() * sizeof(uchar), cudaMemcpyHostToDevice));
+		auto originalNumCols = image.getNumCols();
+		auto originalNumRows = image.getNumRows();
+		auto newNumCols = originalNumCols + (maxFilterWidth / 2) * 2;
+		auto newNumRows = originalNumRows + (maxFilterWidth / 2) * 2;
+		shared_ptr<uchar> deviceGrayImageIn = allocateMemmoryDevice<uchar>(newNumCols*newNumRows);
+		shared_ptr<uchar> modifiedHostGrayImage = makeArray<uchar>(newNumCols*newNumRows);
+		auto modifiedPtr = modifiedHostGrayImage.get();
+		for (size_t i = 0; i < newNumCols*newNumRows; i++)
+		{
+			modifiedPtr[i] = hostGrayImage[indexToCopyToMirrored(i, originalNumCols, originalNumRows, maxFilterWidth)];
+		}
+		checkCudaErrors(cudaMemcpy(deviceGrayImageIn.get(), modifiedPtr, newNumCols*newNumRows * sizeof(uchar), cudaMemcpyHostToDevice));
 		// memory allocation
 
 		const uint numberOfThreadsInBlock = 32;
@@ -139,14 +177,14 @@ namespace processing
 			case 3:
 			{
 				Filter<T, 3> * ptr = (Filter<T, 3> *) (deviceFilters.get() + offset);
-				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
+				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
 				checkCudaErrors(cudaDeviceSynchronize());
 				break;
 			}
 			case 5:
 			{
 				Filter<T, 5> * ptr = (Filter<T, 5> *) (deviceFilters.get() + offset);
-				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
+				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
 				checkCudaErrors(cudaDeviceSynchronize());
 
 				break;
@@ -154,7 +192,7 @@ namespace processing
 			case 7:
 			{
 				Filter<T, 7> * ptr = (Filter<T, 7> *) (deviceFilters.get() + offset);
-				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
+				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
 				checkCudaErrors(cudaDeviceSynchronize());
 				break;
 			}
@@ -170,7 +208,7 @@ namespace processing
 		}
 	}
 
-
+	
 
 	/* color
 	template<typename T>
@@ -260,5 +298,3 @@ namespace processing
 	}
 	*/
 }
-
-
