@@ -24,37 +24,37 @@ static const string OUTPUT_IMAGE_PATH = "output_img.jpg";
 int main()
 {
 	allocateMemmoryDevice<uchar>(1);
-	#define COUNT_TYPE double
+	#define COUNT_TYPE float
 	auto gausianBig = createFilter<COUNT_TYPE>(
 		7, {
-			0.00000067,	0.00002292,	0.00019117,	0.00038771,	0.00019117,	0.00002292,	0.00000067,
-			0.00002292,	0.00078634,	0.00655965,	0.01330373,	0.00655965,	0.00078633,	0.00002292,
-			0.00019117,	0.00655965,	0.05472157,	0.11098164,	0.05472157,	0.00655965,	0.00019117,
-			0.00038771,	0.01330373,	0.11098164,	0.22508352,	0.11098164,	0.01330373,	0.00038771,
-			0.00019117,	0.00655965,	0.05472157,	0.11098164,	0.05472157,	0.00655965,	0.00019117,
-			0.00002292,	0.00078633,	0.00655965,	0.01330373,	0.00655965,	0.00078633, 0.00002292,
-			0.00000067,	0.00002292,	0.00019117,	0.00038771,	0.00019117,	0.00002292,	0.00000067
+			0.00000067f,0.00002292f,0.00019117f,0.00038771f,	0.00019117f,	0.00002292f,	0.00000067f,
+			0.00002292f,	0.00078634f,	0.00655965f,	0.01330373f,	0.00655965f,	0.00078633f,	0.00002292f,
+			0.00019117f,	0.00655965f,	0.05472157f,	0.11098164f,	0.05472157f,	0.00655965f,	0.00019117f,
+			0.00038771f,	0.01330373f,	0.11098164f,	0.22508352f,	0.11098164f,	0.01330373f,	0.00038771f,
+			0.00019117f,	0.00655965f,	0.05472157f,	0.11098164f,	0.05472157f,	0.00655965f,	0.00019117f,
+			0.00002292f,	0.00078633f,	0.00655965f,	0.01330373f,	0.00655965f,	0.00078633f, 0.00002292f,
+			0.00000067f,	0.00002292f,	0.00019117f,	0.00038771f,	0.00019117f,	0.00002292f,	0.00000067f
 		},
-		1.0
+		1.0f
 		);
 	auto gausianBlur = createFilter<COUNT_TYPE>
 		(3,
 		{
-			0,0.2,0,
-			0.2,0.2,0.2,
-			0, 0.2, 0
+			0.0f,0.2f,0.0f,
+			0.2f,0.2f,0.2f,
+			0.0f, 0.2f, 0.0f
 		}
 			
 	);
 	auto sobel = createFilter<COUNT_TYPE>
 	(3, 
 	{
-		-1.0,0.0,1,
-		-2.0,0.0,2.0,
-		-1.0,0.0,1.0
-	}, 10.0
+		-1.0f,0.0f,1.0f,
+		-2.0f,0.0f,2.0f,
+		-1.0f,0.0f,1.0f
+	}, 10.0f
 	);
-	vector< shared_ptr<AbstractFilter<COUNT_TYPE> > > filters = {  sobel, gausianBlur, gausianBig };
+	vector< shared_ptr<AbstractFilter<COUNT_TYPE> > > filters = {  sobel , gausianBig, sobel, sobel, gausianBig, sobel};
 	for (size_t i = 0; i < gausianBlur->getWidth() * gausianBlur->getWidth(); i++)
 	{
 		cout << ((Filter<COUNT_TYPE, 3> *) gausianBlur.get())->getFilter()[i] << endl;
@@ -68,8 +68,8 @@ int main()
 	vector<shared_ptr<COUNT_TYPE>> resultsCpu;
 	auto timeCPU = factory.run(&cpuKonv, resultsCpu);
 	cout << "konec" ;
-	cout << "Time GPU: " << timeGPU.getTimeMicro() << endl;
-	cout << "Time CPU: " << timeCPU.getTimeMicro() << endl;
+	cout << "Time GPU: " << timeGPU.getTimeMilli() << endl;
+	cout << "Time CPU: " << timeCPU.getTimeMilli() << endl;
 	for (uint i = 0; i < std::min(resultsKernel.size(), resultsCpu.size()) ; i++)
 	{
 		auto pGPU = resultsKernel[i];
