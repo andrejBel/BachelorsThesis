@@ -23,7 +23,7 @@ namespace processing
 	private:
 		vector< shared_ptr<AbstractFilter <T>> >& h_filters_;
 
-		int indexToCopyToMirrored(int index, int numCols, int numRows, const int filterWidth);
+	    __host__ __forceinline__ int indexToCopyToMirrored(int index, int numCols, int numRows, const int filterWidth);
 
 
 	};

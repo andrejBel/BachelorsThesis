@@ -104,16 +104,24 @@ namespace processing
 
 
 	template<typename T>
-	inline shared_ptr<T> makeArray(size_t size)
+	__host__ __forceinline__ inline shared_ptr<T> makeArrayCudaHost(size_t size)
 	{
-		return std::shared_ptr<T>(new T[size], [](T* p) { delete[] p; });
+		T* memory = nullptr;
+		checkCudaErrors(cudaMallocHost((void **)&memory, size * sizeof(T)));
+		return shared_ptr<T>(memory, [](T* p) {  checkCudaErrors(cudaFreeHost(p)); });
+	}
+
+	template<typename T>
+	__host__ __forceinline__ inline shared_ptr<T> makeArray(size_t size)
+	{
+		return std::shared_ptr<T>( new T[size], [](T* p) { delete[] p; });
 	}
 
 	void deallocateMemmoryDevice(void* pointer);
 	
 
 	template <typename T>
-	shared_ptr<T> allocateMemmoryDevice(size_t size)
+	__host__ __forceinline__ shared_ptr<T> allocateMemmoryDevice(size_t size)
 	{
 		T* memory = nullptr;
 		checkCudaErrors(cudaMalloc((void **)&memory, size * sizeof(T)));
