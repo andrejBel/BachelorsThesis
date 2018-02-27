@@ -52,12 +52,12 @@ namespace processing
 {
 
 	template <typename T>
-	__device__ const T& min(const T& a, const T& b) {
+	__device__ __forceinline__ const T min(const T a, const T b) {
 		return !(b<a) ? a : b;
 	}
 
 	template <typename T>
-	__device__ const T& max(const T& a, const T& b) {
+	__device__  __forceinline__ const T max(const T a, const T b) {
 		return (b<a) ? a : b;
 	}
 
@@ -71,8 +71,8 @@ namespace processing
 
 
 
-	template<typename T, typename int WIDTH>
-	__global__ void convolutionGPU(processing::Filter<T, WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage, int maxFilterWidth)
+	template<typename T, typename int FILTER_WIDTH>
+	__global__ void convolutionGPU(processing::Filter<T, FILTER_WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage)
 	{
 		int2 absoluteImagePosition;
 
@@ -86,23 +86,20 @@ namespace processing
 		const T* filterV = filter->getFilter();
 		T result(0.0);
 		int2 pointPosition;
-		//if (index1D == (1628490))
-		//{
-#pragma unroll WIDTH
-		for (int yOffset = 0; yOffset < WIDTH; yOffset++)
+		#pragma unroll FILTER_WIDTH
+		for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
 		{
-#pragma unroll WIDTH
-			for (int xOffset = 0; xOffset < WIDTH; xOffset++)
+		#pragma unroll FILTER_WIDTH
+			for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
 			{
-				pointPosition.x = absoluteImagePosition.x + xOffset - WIDTH / 2;
-				pointPosition.y = absoluteImagePosition.y + yOffset - WIDTH / 2;
-				result += filterV[yOffset*WIDTH + xOffset] * inputImage[indexInNew(pointPosition.x, pointPosition.y, numCols, numRows, maxFilterWidth)];
-				//printf("Result: %f\n", result);
+				pointPosition.x = absoluteImagePosition.x + xOffset - FILTER_WIDTH / 2;
+				pointPosition.y = absoluteImagePosition.y + yOffset - FILTER_WIDTH / 2;
+				pointPosition.x = min(max(pointPosition.x, 0), numCols - 1);
+				pointPosition.y = min(max(pointPosition.y, 0), numRows - 1);
+				result += filterV[yOffset*FILTER_WIDTH + xOffset] * inputImage[pointPosition.y*numCols + pointPosition.x];
 			}
 		}
-
 		outputImage[index1D] = result;
-		//}
 
 	}
 
@@ -121,97 +118,89 @@ namespace processing
 
 	template<typename T>
 	KernelSlowConvolutionNoEdgeCopy<T>::KernelSlowConvolutionNoEdgeCopy(vector<shared_ptr<AbstractFilter<T>>>& filters) :
-		h_filters_(filters)
+		h_filters_(filters),
+		threadPool_(1)
 	{
-
 	}
-
-
-
-
 
 	template<typename T>
 	void KernelSlowConvolutionNoEdgeCopy<T>::run(ImageFactory & image, vector<shared_ptr<T>>& results)
 	{
-	uint filterCount(h_filters_.size());
-	size_t memmoryToAllocateForFiltersOnDevice(0);
-	for_each(h_filters_.begin(), h_filters_.end(), [&memmoryToAllocateForFiltersOnDevice](auto& filter) { memmoryToAllocateForFiltersOnDevice += filter->getSize(); });
-	shared_ptr<uchar> deviceFilters = allocateMemmoryDevice<uchar>( memmoryToAllocateForFiltersOnDevice);
-	uint offset(0);
-	for_each(h_filters_.begin(), h_filters_.end(), [&deviceFilters, &offset](auto& filter)
-	{
-	filter->copyWholeFilterToDeviceMemory(deviceFilters.get() + offset);
-	offset += filter->getSize();
-	});
-	// filter allocation and initialization
-	shared_ptr<uchar4> deviceRGBAImage = allocateMemmoryDevice<uchar4>(image.getNumPixels());
+		uint filterCount(h_filters_.size());
+		size_t memmoryToAllocateForFiltersOnDevice(0);
+		for_each(h_filters_.begin(), h_filters_.end(), [&memmoryToAllocateForFiltersOnDevice](auto& filter) { memmoryToAllocateForFiltersOnDevice += filter->getSize(); });
+		shared_ptr<uchar> deviceFilters = allocateMemmoryDevice<uchar>(memmoryToAllocateForFiltersOnDevice);
+		uint offset(0);
+		int maxFilterWidth = 0;
+		for_each(h_filters_.begin(), h_filters_.end(), [&deviceFilters, &offset, &maxFilterWidth](auto& filter)
+		{
+			filter->copyWholeFilterToDeviceMemory(deviceFilters.get() + offset);
+			offset += filter->getSize();
+			if (maxFilterWidth < filter->getSize())
+			{
+				maxFilterWidth = filter->getSize();
+			}
+		});
+		// filter allocation and initialization
+		shared_ptr<T> deviceGrayImageOut = allocateMemmoryDevice<T>(image.getNumPixels());
+		uchar* hostGrayImage = image.getInputGrayPointer();
 
-	shared_ptr<uchar> deviceRedChannelIn = allocateMemmoryDevice<uchar>(image.getNumPixels());
-	shared_ptr<uchar> deviceGreenChannelIn = allocateMemmoryDevice<uchar>(image.getNumPixels());
-	shared_ptr<uchar> deviceBlueChannelIn = allocateMemmoryDevice<uchar>(image.getNumPixels());
+		shared_ptr<uchar> deviceGrayImageIn = allocateMemmoryDevice<uchar>(image.getNumPixels());
+		shared_ptr<T> result = makeArrayCudaHost<T>(image.getNumPixels());
+		checkCudaErrors(cudaMemcpy(deviceGrayImageIn.get(), hostGrayImage, image.getNumPixels() * sizeof(uchar), cudaMemcpyHostToDevice));
+		// memory allocation
 
-	shared_ptr<uchar> deviceRedChannelOut = allocateMemmoryDevice<uchar>(image.getNumPixels());
-	shared_ptr<uchar> deviceGreenChannelOut = allocateMemmoryDevice<uchar>(image.getNumPixels());
-	shared_ptr<uchar> deviceBlueChannelOut = allocateMemmoryDevice<uchar>(image.getNumPixels());
+		const uint numberOfThreadsInBlock = 16;
+		const dim3 blockSize(numberOfThreadsInBlock, numberOfThreadsInBlock);
+		const dim3 gridSize((image.getNumCols() + blockSize.x - 1) / blockSize.x, (image.getNumRows() + blockSize.y - 1) / blockSize.y, 1);
+		// kernels parameters
+		offset = 0;
+		for (auto& filter : h_filters_)
+		{
+			switch (filter->getWidth())
+			{
+			case 3:
+			{
+				Filter<T, 3> * ptr = (Filter<T, 3> *) (deviceFilters.get() + offset);
+				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
+				checkCudaErrors(cudaDeviceSynchronize());
+				break;
+			}
+			case 5:
+			{
+				Filter<T, 5> * ptr = (Filter<T, 5> *) (deviceFilters.get() + offset);
+				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
+				checkCudaErrors(cudaDeviceSynchronize());
 
-	uchar4* hostRGBAImage = image.getInputRGBAPointer();
-	checkCudaErrors(cudaMemcpy(deviceRGBAImage.get(), hostRGBAImage, image.getNumPixels() * sizeof(uchar4), cudaMemcpyHostToDevice));
-	// memory allocation
-	const uint numberOfThreadsInBlock = 32;
-	const dim3 blockSize(numberOfThreadsInBlock, numberOfThreadsInBlock);
-	const dim3 gridSize((image.getNumCols() + blockSize.x - 1) / blockSize.x, (image.getNumRows() + blockSize.y - 1) / blockSize.y, 1);
-	// kernels parameters
-	separateChannels<char> << <gridSize, blockSize >> > (deviceRGBAImage.get(), image.getNumRows(), image.getNumCols(), deviceRedChannelIn.get(), deviceGreenChannelIn.get(), deviceBlueChannelIn.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	// initialization of channels
-	offset = 0;
-	for (auto& filter : h_filters_)
-	{
-	switch (filter->getWidth())
-	{
-	case 3:
-	{
-	Filter<T, 3> * ptr = (Filter<T, 3> *) (deviceFilters.get() + offset);
-	convolution <<<gridSize, blockSize>>>(ptr, image.getNumRows(), image.getNumCols(), deviceRedChannelIn.get(), deviceRedChannelOut.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	convolution << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGreenChannelIn.get(), deviceGreenChannelOut.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	convolution << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceBlueChannelIn.get(), deviceBlueChannelOut.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	break;
-	}
-	case 5:
-	{
-	Filter<T, 5> * ptr = (Filter<T, 5> *) (deviceFilters.get() + offset);
-	convolution << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceRedChannelIn.get(), deviceRedChannelOut.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	convolution << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGreenChannelIn.get(), deviceGreenChannelOut.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	convolution << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceBlueChannelIn.get(), deviceBlueChannelOut.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	break;
-	}
-	case 7:
-	{
-	Filter<T, 7> * ptr = (Filter<T, 7> *) (deviceFilters.get() + offset);
-	convolution << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceRedChannelIn.get(), deviceRedChannelOut.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	convolution << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGreenChannelIn.get(), deviceGreenChannelOut.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	convolution << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceBlueChannelIn.get(), deviceBlueChannelOut.get());
-	checkCudaErrors(cudaDeviceSynchronize());
-	break;
-	}
-	default:
-	break;
-	}
-	offset += filter->getSize();
-	recombineChannels<char><<<gridSize, blockSize>>>(deviceRedChannelOut.get(), deviceGreenChannelOut.get(), deviceBlueChannelOut.get(), deviceRGBAImage.get(), image.getNumRows(), image.getNumCols());
-	checkCudaErrors(cudaDeviceSynchronize());
-
-	checkCudaErrors( cudaMemcpy(image.getOutputRGBAPointer(), deviceRGBAImage.get(), image.getNumPixels() * sizeof(uchar4), cudaMemcpyDeviceToHost) );
-
-	}
+				break;
+			}
+			case 7:
+			{
+				Filter<T, 7> * ptr = (Filter<T, 7> *) (deviceFilters.get() + offset);
+				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
+				checkCudaErrors(cudaDeviceSynchronize());
+				break;
+			}
+			default:
+				break;
+			}
+			offset += filter->getSize();
+			threadPool_.finishAll();
+			checkCudaErrors(cudaMemcpy(result.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
+			threadPool_.addTask(
+				[&] ()
+				{
+				shared_ptr<T> resultCPU = makeArray<T>(image.getNumPixels());
+				std::copy(result.get(), result.get() + image.getNumPixels(), resultCPU.get());
+				results.push_back(resultCPU);
+				}
+			);
+			
+			//image.copyDeviceGrayToHostGrayOut(deviceGrayImageOut.get());
+			//image.saveGrayImgOut("blurredImage.jpg");
+		}
+		cout << "";
+		threadPool_.finishAll();
 	}
 	
 }

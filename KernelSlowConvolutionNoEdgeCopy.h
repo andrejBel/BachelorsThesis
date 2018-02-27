@@ -3,6 +3,7 @@
 #include <vector>
 #include "Filter.h"
 #include <memory>
+#include "ThreadPool.h"
 
 using namespace std;
 namespace processing
@@ -22,7 +23,7 @@ namespace processing
 
 	private:
 		vector< shared_ptr<AbstractFilter <T>> >& h_filters_;
-
+		ThreadPool threadPool_;
 		__host__ __forceinline__ int indexToCopyToMirrored(int index, int numCols, int numRows, const int filterWidth);
 
 
@@ -30,6 +31,8 @@ namespace processing
 
 	__device__ __forceinline__ size_t indexInNew(int indexX, int indexY, int originalWidth, int originalHeight, int filterWidth);
 
+
+	
 
 }
 

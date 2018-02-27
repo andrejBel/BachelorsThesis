@@ -128,7 +128,13 @@ namespace processing
 		return shared_ptr<T>(memory, [](T* p) {  checkCudaErrors(cudaFree(p)); });
 	}
 
-	
+	template <typename T>
+	__host__ __forceinline__ T* allocateMemmoryDeviceNoShared(size_t size)
+	{
+		T* memory = nullptr;
+		checkCudaErrors(cudaMalloc((void **)&memory, size * sizeof(T)));
+		return memory;
+	}
 
 
 }

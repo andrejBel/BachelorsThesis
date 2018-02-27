@@ -52,12 +52,12 @@ namespace processing
 {
 
 	template <typename T>
-	__device__ const T& min(const T& a, const T& b) {
+	__host__ __forceinline__  const T min(const T a, const T b) {
 		return !(b<a) ? a : b;
 	}
 
 	template <typename T>
-	__device__ const T& max(const T& a, const T& b) {
+	__host__ __forceinline__ const T max(const T a, const T b) {
 		return (b<a) ? a : b;
 	}
 
@@ -71,8 +71,8 @@ namespace processing
 
 
 
-	template<typename T, typename int WIDTH>
-	__global__ void convolutionGPU(processing::Filter<T, WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage, int maxFilterWidth)
+	template<typename T, typename int FILTER_WIDTH>
+	__global__ void convolutionGPU(processing::Filter<T, FILTER_WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage, int maxFilterWidth)
 	{
 		int2 absoluteImagePosition;
 
@@ -88,15 +88,15 @@ namespace processing
 		int2 pointPosition;
 		//if (index1D == (1628490))
 		//{
-		#pragma unroll WIDTH
-		for (int yOffset = 0; yOffset < WIDTH; yOffset++)
+		#pragma unroll FILTER_WIDTH
+		for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
 		{
-		#pragma unroll WIDTH
-			for (int xOffset = 0; xOffset < WIDTH; xOffset++)
+		#pragma unroll FILTER_WIDTH
+			for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
 			{
-				pointPosition.x = absoluteImagePosition.x + xOffset - WIDTH / 2;
-				pointPosition.y = absoluteImagePosition.y + yOffset - WIDTH / 2;
-				result += filterV[yOffset*WIDTH + xOffset] * inputImage[indexInNew(pointPosition.x, pointPosition.y, numCols, numRows, maxFilterWidth)];
+				pointPosition.x = absoluteImagePosition.x + xOffset - FILTER_WIDTH / 2;
+				pointPosition.y = absoluteImagePosition.y + yOffset - FILTER_WIDTH / 2;
+				result += filterV[yOffset*FILTER_WIDTH + xOffset] * inputImage[indexInNew(pointPosition.x, pointPosition.y, numCols, numRows, maxFilterWidth)];
 				//printf("Result: %f\n", result);
 			}
 		}
@@ -112,8 +112,8 @@ namespace processing
 	{
 		int indexX = (index % (numCols + (filterWidth / 2) * 2)) - (filterWidth / 2);
 		int indexY = (index / (numCols + (filterWidth / 2) * 2)) - (filterWidth / 2);
-		indexX = std::min(std::max(indexX, 0), numCols - 1);
-		indexY = std::min(std::max(indexY, 0), numRows - 1);
+		indexX = processing::min(processing::max(indexX, 0), numCols - 1);
+		indexY = processing::min(processing::max(indexY, 0), numRows - 1);
 		return indexY * numCols + indexX;
 	}
 
