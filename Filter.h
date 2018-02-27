@@ -36,7 +36,7 @@ namespace processing
 	};
 
 
-	template <typename T, int WIDTH>
+	template <typename T, int FILTER_WIDTH>
 	class Filter : public AbstractFilter<T>
 	{
 		static_assert(std::is_floating_point<T>::value, "Class Filter can only be instantiazed with float, double or long double");
@@ -52,14 +52,14 @@ namespace processing
 
 		CPUGPUINLINE virtual int getWidth() const override
 		{
-			return WIDTH;
+			return FILTER_WIDTH;
 		}
 
 		CPU virtual void copyWholeFilterToDeviceMemory(void * destination) const override;
 
 		CPUGPUINLINE virtual uint getSize() const override
 		{
-			return sizeof(Filter<T, WIDTH>);
+			return sizeof(Filter<T, FILTER_WIDTH>);
 		}
 
 		CPU virtual ~Filter() 
@@ -67,7 +67,7 @@ namespace processing
 
 	private:
 
-		T filter_[WIDTH * WIDTH];
+		T filter_[FILTER_WIDTH * FILTER_WIDTH];
 
 	};
 

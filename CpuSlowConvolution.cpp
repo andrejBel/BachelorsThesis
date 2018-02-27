@@ -11,35 +11,10 @@ namespace processing
 {
 
 
-	template <typename T, typename int WIDTH>
-	void convolution(ImageFactory& image, Filter<T, WIDTH> * filter, T* outputImage)
+	template <typename T, typename int FILTER_WIDTH>
+	void convolution(ImageFactory& image, Filter<T, FILTER_WIDTH> * filter, T* outputImage)
 	{
-		auto columns = image.getNumCols();
-		auto rows = image.getNumRows();
-		uchar * inputImage = image.getInputGrayPointer();
-		int2 absoluteImagePosition;
-		int2 pointPosition;
-		auto filterV = filter->getFilter();
-		T result(0.0);
-		for (int row = 0; row < rows; ++row)
-		{
-			for (int column = 0; column < columns; ++column)
-			{
-				result = 0.0;
-				for (int y = 0; y < WIDTH; ++y)
-				{
-					for (int x = 0; x < WIDTH; ++x)
-					{
-						pointPosition.x = column + x - (WIDTH / 2);
-						pointPosition.y = row + y - (WIDTH / 2);
-						pointPosition.x = std::min(std::max(pointPosition.x, 0), columns - 1);
-						pointPosition.y = std::min(std::max(pointPosition.y, 0), rows - 1);
-						result += filterV[y * WIDTH + x] * inputImage[pointPosition.y * columns + pointPosition.x];
-					}
-				}
-				outputImage[row * columns + column] = result;
-			}
-		}
+		
 	}
 
 	template<typename T>
@@ -81,6 +56,19 @@ namespace processing
 			//image.saveGrayImgOut("blurredImage.jpg");
 		}
 	}
+
+	template<typename T>
+	__host__ __forceinline__ int CpuSlowConvolution<T>::min(int a, int b)
+	{
+		return a < b ? a : b;
+	}
+
+	template<typename T>
+	__host__ __forceinline__ int CpuSlowConvolution<T>::max(int a, int b)
+	{
+		return a > b ? a : b;
+	}
+	
 
 
 }
