@@ -58,8 +58,7 @@ using namespace std;
 
 #define ALCHEMY_REPEAT_N(N,T)  ALCHEMY_REPEAT_##N(T)
 
-#define PRINTBLA\
-	ALCHEMY_REPEAT_32(std::cout <<) ALCHEMY_REPEAT_32(1);
+
 
 #define MERAJ(BLOCK_S,TILE_S,FILTER_W)\
 {\
@@ -68,13 +67,14 @@ using namespace std;
 	const int BLOCK_SIZE = BLOCK_S;\
 	const int FILTER_WIDTH = FILTER_W;\
 	const int TILE_SIZE = TILE_S;\
+	static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH - 1), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");\
 	const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);\
 	const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);\
 	m.start();\
 	convolutionGPUShared<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());\
 	m.stop();\
 		checkCudaErrors(cudaDeviceSynchronize());\
-	cout << "Block size: " << BLOCK_SIZE << ", TILE_SIZE: " << TILE_SIZE << ", time: " << m.getTimeMicro() << endl;\
+	cout << "Block size: " << BLOCK_SIZE << ", TILE_SIZE: " << TILE_SIZE << ", FILTERWIDTH: " << FILTER_WIDTH << ", time: " << m.getTimeMicro() << endl;\
 }
 
 namespace processing
@@ -89,7 +89,7 @@ namespace processing
 		int2 sharedPosition;
 		sharedPosition.x = absoluteImagePosition.x - (FILTER_WIDTH / 2);
 		sharedPosition.y = absoluteImagePosition.y - (FILTER_WIDTH / 2);
-		__shared__ float shared[BLOCK_SIZE][BLOCK_SIZE];
+		__shared__ uchar shared[BLOCK_SIZE][BLOCK_SIZE];
 		int threadX = threadIdx.x;
 		int threadY = threadIdx.y;
 		sharedPosition.x = min(max(sharedPosition.x, 0), numCols - 1);
@@ -116,23 +116,19 @@ namespace processing
 	}
 
 	template<typename T>
-	KernelSharedMemory<T>::KernelSharedMemory(vector<shared_ptr<AbstractFilter<T>>>& filters) :
-		h_filters_(filters),
-		threadPool_(1)
-	{
-		PRINTBLA
-	}
+	KernelSharedMemory<T>::KernelSharedMemory() 
+	{}
 
 	template<typename T>
-	void KernelSharedMemory<T>::run(ImageFactory & image, vector<shared_ptr<T>>& results)
+	void KernelSharedMemory<T>::run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results)
 	{
-		uint filterCount(h_filters_.size());
+		uint filterCount(filters.size());
 		size_t memmoryToAllocateForFiltersOnDevice(0);
-		for_each(h_filters_.begin(), h_filters_.end(), [&memmoryToAllocateForFiltersOnDevice](auto& filter) { memmoryToAllocateForFiltersOnDevice += filter->getSize(); });
+		for_each(filters.begin(), filters.end(), [&memmoryToAllocateForFiltersOnDevice](auto& filter) { memmoryToAllocateForFiltersOnDevice += filter->getSize(); });
 		shared_ptr<uchar> deviceFilters = allocateMemmoryDevice<uchar>(memmoryToAllocateForFiltersOnDevice);
 		uint offset(0);
 		int maxFilterWidth = 0;
-		for_each(h_filters_.begin(), h_filters_.end(), [&deviceFilters, &offset, &maxFilterWidth](auto& filter)
+		for_each(filters.begin(), filters.end(), [&deviceFilters, &offset, &maxFilterWidth](auto& filter)
 		{
 			filter->copyWholeFilterToDeviceMemory(deviceFilters.get() + offset);
 			offset += filter->getSize();
@@ -146,12 +142,11 @@ namespace processing
 		uchar* hostGrayImage = image.getInputGrayPointer();
 
 		shared_ptr<uchar> deviceGrayImageIn = allocateMemmoryDevice<uchar>(image.getNumPixels());
-		shared_ptr<T> result = makeArrayCudaHost<T>(image.getNumPixels());
 		checkCudaErrors(cudaMemcpy(deviceGrayImageIn.get(), hostGrayImage, image.getNumPixels() * sizeof(uchar), cudaMemcpyHostToDevice));
 		// memory allocation
 
 		offset = 0;
-		for (auto& filter : h_filters_)
+		for (auto& filter : filters)
 		{
 			switch (filter->getWidth())
 			{
@@ -160,7 +155,7 @@ namespace processing
 				Filter<T, 3> * ptr = (Filter<T, 3> *) (deviceFilters.get() + offset);
 				const int BLOCK_SIZE = 32;
 				const int FILTER_WIDTH = 3;
-				const int TILE_SIZE = 28;
+				const int TILE_SIZE = 30;
 				const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);
 				const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);
 				convolutionGPUShared<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
@@ -169,28 +164,23 @@ namespace processing
 			}
 			case 5:
 			{
-						//cv::TickMeter m;
 						Filter<T, 5> * ptr = (Filter<T, 5> *) (deviceFilters.get() + offset);
-						const int BLOCK_SIZE = 20;
+						const int BLOCK_SIZE = 32;
 						const int FILTER_WIDTH = 5;
-						const int TILE_SIZE = 16;
+						const int TILE_SIZE = 28;
 						const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);
 						const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);
-						//m.start();
+						static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH - 1), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");
 						convolutionGPUShared<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> > (ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
-						//m.stop(); \
-							checkCudaErrors(cudaDeviceSynchronize());
-						//cout << "Block size: " << BLOCK_SIZE << ", TILE_SIZE: " << TILE_SIZE << ", time: " << m.getTimeMicro() << endl;
-						MERAJ(16,8,5)
-				
+						checkCudaErrors(cudaDeviceSynchronize());
 				break;
 			}
 			case 7:
 			{
 				Filter<T, 7> * ptr = (Filter<T, 7> *) (deviceFilters.get() + offset);
-				const int BLOCK_SIZE = 30;
+				const int BLOCK_SIZE = 32;
 				const int FILTER_WIDTH = 7;
-				const int TILE_SIZE = 24;
+				const int TILE_SIZE = 26;
 				const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);
 				const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);
 				convolutionGPUShared<T,FILTER_WIDTH,BLOCK_SIZE, TILE_SIZE><< <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
@@ -201,19 +191,11 @@ namespace processing
 				break;
 			}
 			offset += filter->getSize();
-			threadPool_.finishAll();
-			checkCudaErrors(cudaMemcpy(result.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
-			threadPool_.addTask(
-				[&]()
-			{
-				shared_ptr<T> resultCPU = makeArray<T>(image.getNumPixels());
-				std::copy(result.get(), result.get() + image.getNumPixels(), resultCPU.get());
-				results.push_back(resultCPU);
-			}
-			);
+			shared_ptr<T> resultCPU = makeArray<T>(image.getNumPixels());
+			checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
+			results.push_back(resultCPU);
 		}
 		cout << "";
-		threadPool_.finishAll();
 	}
 
 }

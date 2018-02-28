@@ -15,14 +15,18 @@ namespace processing
 		static_assert(std::is_floating_point<T>::value, "Class KernelSlowConvolution can only be instantiazed with float, double or long double");
 	public:
 
-		CpuSlowConvolution(vector< shared_ptr<AbstractFilter <T>> >& filters);
+		CpuSlowConvolution();
 
 		DELETECOPYASSINGMENT(CpuSlowConvolution<T>)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<T>>& results) override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results) override;
+
+		virtual string getDescription() override
+		{
+			return "CPU single core";
+		}
 
 	private:
-		vector< shared_ptr<AbstractFilter <T>> >& filters_;
 
 		__host__ __forceinline__ int min(int a, int b);
 		

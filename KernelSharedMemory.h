@@ -3,7 +3,7 @@
 #include <vector>
 #include "Filter.h"
 #include <memory>
-#include "ThreadPool.h"
+#include <string>
 
 using namespace std;
 namespace processing
@@ -15,15 +15,18 @@ namespace processing
 		static_assert(std::is_floating_point<T>::value, "Class KernelSlowConvolution can only be instantiazed with float, double or long double");
 	public:
 
-		KernelSharedMemory(vector< shared_ptr<AbstractFilter <T>> >& filters);
+		KernelSharedMemory();
 
 		DELETECOPYASSINGMENT(KernelSharedMemory<T>)
 
-			virtual void run(ImageFactory& image, vector<shared_ptr<T>>& results)  override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results)  override;
+
+		virtual string getDescription() override 
+		{
+			return "GPU shared memmory";
+		}
 
 	private:
-		vector< shared_ptr<AbstractFilter <T>> >& h_filters_;
-		ThreadPool threadPool_;
 
 	};
 

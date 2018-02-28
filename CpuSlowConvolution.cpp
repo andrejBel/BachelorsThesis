@@ -9,24 +9,15 @@
 
 namespace processing 
 {
-
-
-	template <typename T, typename int FILTER_WIDTH>
-	void convolution(ImageFactory& image, Filter<T, FILTER_WIDTH> * filter, T* outputImage)
-	{
-		
-	}
-
 	template<typename T>
-	CpuSlowConvolution<T>::CpuSlowConvolution(vector<shared_ptr<AbstractFilter<T>>>& filters):
-		filters_(filters)
+	CpuSlowConvolution<T>::CpuSlowConvolution()
 	{
 	}
 
 	template<typename T>
-	void CpuSlowConvolution<T>::run(ImageFactory & image, vector<shared_ptr<T>>& results)
+	void CpuSlowConvolution<T>::run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results)
 	{
-		for (auto& filter : filters_)
+		for (auto& filter : filters)
 		{
 			shared_ptr<T> result = makeArray<T>(image.getNumPixels());
 			switch (filter->getWidth())
