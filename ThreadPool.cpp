@@ -2,19 +2,18 @@
 
 
 
-ThreadPool::ThreadPool(int c) :
-	threadCount_(c),
+ThreadPool::ThreadPool(int c):
 	end_(false),
-	undoneTasks_(0),
-	destroyedThreads_(0)
+	undoneTasks_(0)
 {
 	if (c < 1)
 	{
 		throw std::runtime_error("Number of threads must be bigger than 0");
 	}
+	threads_.resize(c);
 	for (int i = 0; i < c; i++)
 	{
-		std::thread([this] { this->run(); }).detach();
+		threads_[i] = std::move(std::thread(&ThreadPool::run, this));
 	}
 }
 
@@ -28,42 +27,58 @@ void ThreadPool::addTask(std::function<void(void)> job)
 	if (!end_) {
 		mutex_.lock();
 		tasks_.push(job);
-		mutex_.unlock();
 		++undoneTasks_;
-		conditionVariable_.notify_one();
+		mutex_.unlock();
+		conditionVariable_.notify_all();
 	}
 }
 
 void ThreadPool::finishAll()
 {
 	std::unique_lock<std::mutex> lock(mutex_);
-	while (undoneTasks_ > 0)
-	{
-		conditionVariable_.wait(lock);
-	}
+	conditionVariable_.wait(lock, [&undoneTasks_ = undoneTasks_]() { return undoneTasks_ == 0; });
 }
 
 void ThreadPool::run()
 {
 	std::function<void(void)> run;
-	while (!end_) {
+	while (true) {
 		std::unique_lock<std::mutex> lock(mutex_);
-		while (undoneTasks_ == 0 && !end_)
+		ThreadPool::Action nextAction = getNextAction();
+		if (nextAction == ThreadPool::Action::SLEEP)
 		{
-			conditionVariable_.notify_one();
-			conditionVariable_.wait(lock);
+			conditionVariable_.wait(lock, [this]() { return getNextAction() != ThreadPool::Action::SLEEP; });
+			nextAction = getNextAction();
 		}
-		if (!tasks_.empty()) {
-			run = std::move(tasks_.front());
-			tasks_.pop();
-			lock.unlock();
-			run();
-			--undoneTasks_;
+		if (nextAction == ThreadPool::Action::END) {
+			break;
 		}
+		else if (nextAction == ThreadPool::Action::WORK)
+		{
+			if (!tasks_.empty()) {
+				run = std::move(tasks_.front());
+				tasks_.pop();
+				--undoneTasks_;
+				lock.unlock();
+				run();
+				conditionVariable_.notify_one();
+			}
+		}
+		
 	}
-	
-	++destroyedThreads_;
-	conditionVariable_.notify_one();
+}
+
+ThreadPool::Action ThreadPool::getNextAction()
+{
+	if (end_) 
+	{
+		return ThreadPool::Action::END;
+	}
+	if (undoneTasks_ > 0)
+	{
+		return ThreadPool::Action::WORK;
+	}
+	return ThreadPool::Action::SLEEP;
 }
 
 void ThreadPool::joinAll()
@@ -71,9 +86,13 @@ void ThreadPool::joinAll()
 	if (!end_)
 	{
 		std::unique_lock<std::mutex> lock(mutex_);
-		conditionVariable_.wait(lock, [&undoneTasks = undoneTasks_]() -> bool { return undoneTasks == 0; });
 		end_ = true;
+		conditionVariable_.wait(lock, [&undoneTasks = undoneTasks_]() -> bool { return undoneTasks == 0; });
+		lock.unlock();
 		conditionVariable_.notify_all();
-		conditionVariable_.wait(lock, [&threadCount = threadCount_, &destroyedThreads = destroyedThreads_]() { return destroyedThreads == threadCount; });
+		for (std::thread& thread  :threads_)
+		{
+			thread.join();
+		}
 	}
 }
