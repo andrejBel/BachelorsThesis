@@ -20,6 +20,7 @@
 #include <algorithm>
 
 using namespace std;
+using namespace cv;
 
 template <typename T>
 __global__ void separateChannels(const uchar4* const inputImageRGBA, int numRows, int numCols, unsigned char* const redChannel, unsigned char* const greenChannel, unsigned char* const blueChannel)
@@ -52,16 +53,16 @@ namespace processing
 {
 
 	template <typename T>
-	__host__ __forceinline__  const T min(const T a, const T b) {
+	__host__ __device__ __forceinline__  const T min(const T a, const T b) {
 		return !(b<a) ? a : b;
 	}
 
 	template <typename T>
-	__host__ __forceinline__ const T max(const T a, const T b) {
+	__host__ __device__ __forceinline__ const T max(const T a, const T b) {
 		return (b<a) ? a : b;
 	}
 
-	__device__ __forceinline__ size_t indexInNew(int indexX, int indexY, int originalWidth, int originalHeight, int filterWidth)
+	__device__ __forceinline__ int indexInNew(int indexX, int indexY, int originalWidth, int originalHeight, int filterWidth)
 	{
 		int newWidth = originalWidth + (filterWidth / 2) * 2;
 		indexX += filterWidth / 2;
@@ -69,10 +70,8 @@ namespace processing
 		return indexY * newWidth + indexX;
 	}
 
-
-
 	template<typename T, typename int FILTER_WIDTH>
-	__global__ void convolutionGPU(processing::Filter<T, FILTER_WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage, int maxFilterWidth)
+	__global__ void convolutionGPUSlow(processing::Filter<T, FILTER_WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage, int maxFilterWidth)
 	{
 		int2 absoluteImagePosition;
 
@@ -120,24 +119,21 @@ namespace processing
 
 
 	template<typename T>
-	KernelSlowConvolution<T>::KernelSlowConvolution(vector<shared_ptr<AbstractFilter<T>>>& filters) :
-		h_filters_(filters)
-	{
-
-	}
+	KernelSlowConvolution<T>::KernelSlowConvolution()
+	{}
 
 
 
 	template<typename T>
-	void KernelSlowConvolution<T>::run(ImageFactory & image, vector<shared_ptr<T>>& results)
+	void KernelSlowConvolution<T>::run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results)
 	{
-		uint filterCount(h_filters_.size());
+		uint filterCount(filters.size());
 		size_t memmoryToAllocateForFiltersOnDevice(0);
-		for_each(h_filters_.begin(), h_filters_.end(), [&memmoryToAllocateForFiltersOnDevice](auto& filter) { memmoryToAllocateForFiltersOnDevice += filter->getSize(); });
+		for_each(filters.begin(), filters.end(), [&memmoryToAllocateForFiltersOnDevice](auto& filter) { memmoryToAllocateForFiltersOnDevice += filter->getSize(); });
 		shared_ptr<uchar> deviceFilters = allocateMemmoryDevice<uchar>(memmoryToAllocateForFiltersOnDevice);
 		uint offset(0);
 		int maxFilterWidth = 0;
-		for_each(h_filters_.begin(), h_filters_.end(), [&deviceFilters, &offset, &maxFilterWidth](auto& filter)
+		for_each(filters.begin(), filters.end(), [&deviceFilters, &offset, &maxFilterWidth](auto& filter)
 		{
 			filter->copyWholeFilterToDeviceMemory(deviceFilters.get() + offset);
 			offset += filter->getSize();
@@ -169,22 +165,21 @@ namespace processing
 		// kernels parameters
 		offset = 0;
 
-		shared_ptr<T> result = makeArrayCudaHost<T>(image.getNumPixels());
-		for (auto& filter : h_filters_)
+		for (auto& filter : filters)
 		{
 			switch (filter->getWidth())
 			{
 			case 3:
 			{
 				Filter<T, 3> * ptr = (Filter<T, 3> *) (deviceFilters.get() + offset);
-				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
+				convolutionGPUSlow << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
 				checkCudaErrors(cudaDeviceSynchronize());
 				break;
 			}
 			case 5:
 			{
 				Filter<T, 5> * ptr = (Filter<T, 5> *) (deviceFilters.get() + offset);
-				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
+				convolutionGPUSlow << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
 				checkCudaErrors(cudaDeviceSynchronize());
 
 				break;
@@ -192,7 +187,7 @@ namespace processing
 			case 7:
 			{
 				Filter<T, 7> * ptr = (Filter<T, 7> *) (deviceFilters.get() + offset);
-				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
+				convolutionGPUSlow << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
 				checkCudaErrors(cudaDeviceSynchronize());
 				break;
 			}
@@ -200,9 +195,8 @@ namespace processing
 				break;
 			}
 			offset += filter->getSize();
-			checkCudaErrors(cudaMemcpy(result.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
 			shared_ptr<T> resultCPU = makeArray<T>(image.getNumPixels());
-			std::copy(result.get(), result.get() + image.getNumPixels(), resultCPU.get());
+			checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
 			results.push_back(resultCPU);
 			//image.copyDeviceGrayToHostGrayOut(deviceGrayImageOut.get());
 			//image.saveGrayImgOut("blurredImage.jpg");

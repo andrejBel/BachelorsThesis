@@ -72,7 +72,6 @@ namespace processing
 			return imageRGBAInput_.cols * imageRGBAInput_.rows;
 		}
 
-
 		void copyDeviceRGBAToHostRGBAOut(uchar4* devicePointer);
 
 		void copyDeviceGrayToHostGrayOut(uchar* devicePointer);
@@ -80,17 +79,6 @@ namespace processing
 		void saveRGBAImgOut(const string& filename);
 
 		void saveGrayImgOut(const string& filename);
-
-		template <typename T>
-		TickMeter run(Runnable<T>* r, vector<shared_ptr<T>>& results) 
-		{
-			TickMeter timer;
-			timer.start();
-			r->run(*this, results);
-			timer.stop();
-			return timer;
-		}
-
 
 	private:
 		//attributes
@@ -129,10 +117,18 @@ namespace processing
 	}
 
 	template <typename T>
-	__host__ __forceinline__ T* allocateMemmoryDeviceNoShared(size_t size)
+	__host__ __forceinline__ shared_ptr<T> allocateManagedMemory(size_t size)
 	{
 		T* memory = nullptr;
-		checkCudaErrors(cudaMalloc((void **)&memory, size * sizeof(T)));
+		checkCudaErrors(cudaMallocManaged((void **)&memory, size * sizeof(T)));
+		return shared_ptr<T>(memory, [](T* p) {  checkCudaErrors(cudaFree(p)); });
+	}
+
+	template <typename T>
+	__host__ __forceinline__ T* allocateManagedMemoryPointer(size_t size)
+	{
+		T* memory = nullptr;
+		checkCudaErrors(cudaMallocManaged((void **)&memory, size * sizeof(T)));
 		return memory;
 	}
 
