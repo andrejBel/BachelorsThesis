@@ -1,7 +1,6 @@
 #include "ThreadPool.h"
 
 
-
 ThreadPool::ThreadPool(int c):
 	end_(false),
 	undoneTasks_(0)
@@ -29,7 +28,7 @@ void ThreadPool::addTask(std::function<void(void)> job)
 		tasks_.push(job);
 		++undoneTasks_;
 		mutex_.unlock();
-		conditionVariable_.notify_all();
+		conditionVariable_.notify_one();
 	}
 }
 
@@ -58,10 +57,10 @@ void ThreadPool::run()
 			if (!tasks_.empty()) {
 				run = std::move(tasks_.front());
 				tasks_.pop();
-				--undoneTasks_;
 				lock.unlock();
 				run();
-				conditionVariable_.notify_one();
+				--undoneTasks_;
+				conditionVariable_.notify_all();
 			}
 		}
 		
@@ -70,13 +69,13 @@ void ThreadPool::run()
 
 ThreadPool::Action ThreadPool::getNextAction()
 {
-	if (end_) 
-	{
-		return ThreadPool::Action::END;
-	}
 	if (undoneTasks_ > 0)
 	{
 		return ThreadPool::Action::WORK;
+	}
+	if (end_) 
+	{
+		return ThreadPool::Action::END;
 	}
 	return ThreadPool::Action::SLEEP;
 }
@@ -86,8 +85,8 @@ void ThreadPool::joinAll()
 	if (!end_)
 	{
 		std::unique_lock<std::mutex> lock(mutex_);
-		end_ = true;
 		conditionVariable_.wait(lock, [&undoneTasks = undoneTasks_]() -> bool { return undoneTasks == 0; });
+		end_ = true;
 		lock.unlock();
 		conditionVariable_.notify_all();
 		for (std::thread& thread  :threads_)

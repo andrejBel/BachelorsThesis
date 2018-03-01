@@ -20,8 +20,8 @@ private:
 	bool end_;
 	std::condition_variable conditionVariable_;
 	std::mutex mutex_;
-	int undoneTasks_;
-	void joinAll();
+	std::atomic<int> undoneTasks_;
+	
 	void run();
 	
 	enum Action
@@ -30,7 +30,8 @@ private:
 	};
 	
 public:
-	
+	void joinAll();
+
 	ThreadPool::Action getNextAction();
 	ThreadPool(int c);
 

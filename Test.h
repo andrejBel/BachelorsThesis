@@ -13,7 +13,7 @@
 #include "KernelSlowConvolutionNoEdgeCopy.h"
 #include "CpuSlowConvolution.h"
 #include "CPUSlowConvolutionAsync.h"
-#include "KernelSharedMemoryAsync.h"
+#include "KernelSharedMemoryManaged.h"
 
 using namespace std;
 using namespace cv;
@@ -108,7 +108,8 @@ namespace processing
 		uint replications_;
 		string fileName_;
 		T epsilon_;
-
+	
+	public:
 		static shared_ptr<AbstractFilter<T>> get3x3Filter() 
 		{
 			static shared_ptr<AbstractFilter<T>> filter = createFilter<T>
@@ -255,7 +256,7 @@ namespace processing
 	inline void Test<T>::testAloneForManaged(shared_ptr<Runnable<T>> runnable, uint replications)
 	{
 		Test<T>::Builder builder;
-		builder.setFilters({ Test<T>::get3x3Filter() , Test<T>::get5x5Filter(), Test<T>::get7x7Filter() }).addRunnable(runnable).setReplications(replications);
+		builder.setFilters({ Test<T>::get3x3Filter(), Test<T>::get5x5Filter(), Test<T>::get7x7Filter(), Test<T>::get3x3Filter() , Test<T>::get5x5Filter(), Test<T>::get7x7Filter() }).addRunnable(runnable).setReplications(replications);
 		builder.build().testForMannaged();
 	}
 
@@ -263,7 +264,7 @@ namespace processing
 	inline void Test<T>::testAgainstCpuMulticore(shared_ptr<Runnable<T>> runnable, uint replications)
 	{
 		Test<T>::Builder builder;
-		builder.setFilters({ Test<T>::get3x3Filter() , Test<T>::get5x5Filter(), Test<T>::get7x7Filter() }).addRunnable(runnable).addRunnable( make_shared<CPUSlowConvolutionAsync<T>>()).setReplications(replications);
+		builder.setFilters({ Test<T>::get3x3Filter() }).addRunnable(runnable).addRunnable( make_shared<CPUSlowConvolutionAsync<T>>()).setReplications(replications);
 		builder.build()();
 	}
 
@@ -271,7 +272,7 @@ namespace processing
 	inline void Test<T>::testAgainstCpuSingleCore(shared_ptr<Runnable<T>> runnable, uint replications)
 	{
 		Test<T>::Builder builder;
-		builder.setFilters({ Test<T>::get3x3Filter() , Test<T>::get5x5Filter(), Test<T>::get7x7Filter() }).addRunnable(runnable).addRunnable(make_shared<CpuSlowConvolution<T>>()).setReplications(replications);
+		builder.setFilters({ Test<T>::get3x3Filter(), Test<T>::get5x5Filter(), Test<T>::get7x7Filter() }).addRunnable(runnable).addRunnable(make_shared<CpuSlowConvolution<T>>()).setReplications(replications);
 		builder.build()();
 	}
 

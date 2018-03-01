@@ -117,6 +117,15 @@ namespace processing
 	}
 
 	template <typename T>
+	__host__ __forceinline__ T* allocateMemmoryDevicePointer(size_t size)
+	{
+		T* memory = nullptr;
+		checkCudaErrors(cudaMalloc((void **)&memory, size * sizeof(T)));
+		return memory;
+	}
+
+
+	template <typename T>
 	__host__ __forceinline__ shared_ptr<T> allocateManagedMemory(size_t size)
 	{
 		T* memory = nullptr;
