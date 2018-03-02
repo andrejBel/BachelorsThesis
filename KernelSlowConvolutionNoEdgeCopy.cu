@@ -27,7 +27,13 @@ using namespace std;
 namespace processing
 {
 
-	
+#define CONVOLUTIONSLOWNOEDGECOPY(FILTERWIDTH)\
+case FILTERWIDTH:\
+{\
+	Filter<T, FILTERWIDTH> * ptr = (Filter<T, FILTERWIDTH> *) (deviceFilters.get() + offset);\
+	convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());\
+	break;\
+}
 
 	template<typename T, typename int FILTER_WIDTH>
 	__global__ void convolutionGPU(processing::Filter<T, FILTER_WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage)
@@ -114,39 +120,23 @@ namespace processing
 		{
 			switch (filter->getWidth())
 			{
-			case 3:
-			{
-				Filter<T, 3> * ptr = (Filter<T, 3> *) (deviceFilters.get() + offset);
-				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
-				checkCudaErrors(cudaDeviceSynchronize());
-				break;
-			}
-			case 5:
-			{
-				Filter<T, 5> * ptr = (Filter<T, 5> *) (deviceFilters.get() + offset);
-				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
-				checkCudaErrors(cudaDeviceSynchronize());
-
-				break;
-			}
-			case 7:
-			{
-				Filter<T, 7> * ptr = (Filter<T, 7> *) (deviceFilters.get() + offset);
-				convolutionGPU << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
-				checkCudaErrors(cudaDeviceSynchronize());
-				break;
-			}
+			CONVOLUTIONSLOWNOEDGECOPY(1)
+			CONVOLUTIONSLOWNOEDGECOPY(3)
+			CONVOLUTIONSLOWNOEDGECOPY(5)
+			CONVOLUTIONSLOWNOEDGECOPY(7)
+			CONVOLUTIONSLOWNOEDGECOPY(9)
+			CONVOLUTIONSLOWNOEDGECOPY(11)
+			CONVOLUTIONSLOWNOEDGECOPY(13)
+			CONVOLUTIONSLOWNOEDGECOPY(15)
 			default:
+				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
 				break;
 			}
 			offset += filter->getSize();
 			shared_ptr<T> resultCPU = makeArray<T>(image.getNumPixels());
 			checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
 			results.push_back(resultCPU);		
-			//image.copyDeviceGrayToHostGrayOut(deviceGrayImageOut.get());
-			//image.saveGrayImgOut("blurredImage.jpg");
 		}
-		//cout << "";
 	}
 	
 }

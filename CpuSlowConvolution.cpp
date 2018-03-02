@@ -4,8 +4,15 @@
 #include <memory>
 #include "Filter.h"
 #include <algorithm>
+#include <iostream>
 
-
+#define ACCEPTFILTER(FILTERWIDTH)\
+case FILTERWIDTH:\
+{\
+	Filter<T, FILTERWIDTH> * ptr = (Filter<T, FILTERWIDTH> *) (filter.get());\
+	convolution(image, ptr, result.get());\
+	break;\
+}
 
 namespace processing 
 {
@@ -22,29 +29,19 @@ namespace processing
 			shared_ptr<T> result = makeArray<T>(image.getNumPixels());
 			switch (filter->getWidth())
 			{
-			case 3:
-			{
-				Filter<T, 3> * ptr = (Filter<T, 3> *) (filter.get());
-				convolution(image, ptr, result.get());
-				break;
-			}
-			case 5:
-			{
-				Filter<T, 5> * ptr = (Filter<T, 5> *) (filter.get());
-				convolution(image, ptr, result.get());
-				break;
-			}
-			case 7:
-			{
-				Filter<T, 7> * ptr = (Filter<T, 7> *) (filter.get());
-				convolution(image, ptr, result.get());
-				break;
-			}
+			ACCEPTFILTER(1)
+			ACCEPTFILTER(3)
+			ACCEPTFILTER(5)
+			ACCEPTFILTER(7)
+			ACCEPTFILTER(9)
+			ACCEPTFILTER(11)
+			ACCEPTFILTER(13)
+			ACCEPTFILTER(15)
 			default:
+				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
 				break;
 			}
 			results.push_back(result);
-			//image.saveGrayImgOut("blurredImage.jpg");
 		}
 	}
 

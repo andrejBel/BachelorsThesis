@@ -59,7 +59,19 @@ using namespace std;
 
 #define ALCHEMY_REPEAT_N(N,T)  ALCHEMY_REPEAT_##N(T)
 
-
+#define CONVOLUTIONSHARED(FILTER_W, BLOCK_S, TILE_S)\
+case FILTER_W:\
+{\
+	Filter<T, FILTER_W> * ptr = (Filter<T, FILTER_W> *) (deviceFilters.get() + offset);\
+	const int BLOCK_SIZE = BLOCK_S;\
+	const int FILTER_WIDTH = FILTER_W;\
+	const int TILE_SIZE = TILE_S;\
+	static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH - 1), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");\
+	const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);\
+	const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);\
+	convolutionGPUShared<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());\
+	break;\
+}
 
 #define MERAJ(BLOCK_S,TILE_S,FILTER_W)\
 {\
@@ -89,29 +101,24 @@ struct X_;
 template <typename T, T N>
 struct X_<T, std::integral_constant<T, N>> {};
 
-template <typename T>
-struct X_<T, std::integral_constant<T, 0>> {};
-
-template <typename T, T N>
-struct X : X_<T, std::integral_constant<T, N>> {};
 
 
-	template <typename R, typename T, typename U>
-	struct ForLoop;
 
-	template <typename R ,typename T, T N>
-	struct ForLoop<R,T, std::integral_constant<T, N>>
+	
+
+	template <typename R, typename int N>
+	struct ForLoop
 	{
 		template< typename F>
 		__device__ __forceinline__ R operator()(F f)
 		{
-			return f(N) + ForLoop<R, T ,N - 1>()(f);
+			return f(N) + ForLoop<R,N - 1>()(f);
 		}
 
 	};
 
-	template <typename R,typename T, T N>
-	struct ForLoop<T, std::integral_constant<T, -1>>
+	template <typename R> 
+	struct ForLoop<R,-1>
 	{
 		template<typename F>
 		__device__ __forceinline__ R operator()(F f)
@@ -121,39 +128,55 @@ struct X : X_<T, std::integral_constant<T, N>> {};
 
 	};
 
-	template <typename R, typename T, T N>
-	struct FORLOOP :public ForLoop<R,T, std::integral_constant<T, N>> {};
 	
 
 	template<typename T, typename int FILTER_WIDTH, typename int BLOCK_SIZE, typename int TILE_SIZE>
 	__global__ void convolutionGPUShared(processing::Filter<T, FILTER_WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage)
 	{
+		
 		int2 absoluteImagePosition;
 		absoluteImagePosition.x = IMAD(blockIdx.x, TILE_SIZE, threadIdx.x);
 		absoluteImagePosition.y = IMAD(blockIdx.y, TILE_SIZE, threadIdx.y);
 		int2 sharedPosition;
 		sharedPosition.x = absoluteImagePosition.x - (FILTER_WIDTH / 2);
 		sharedPosition.y = absoluteImagePosition.y - (FILTER_WIDTH / 2);
+		const T* filterV = filter->getFilter();
+		__shared__ T filterShared[FILTER_WIDTH][FILTER_WIDTH];
 		__shared__ uchar shared[BLOCK_SIZE][BLOCK_SIZE];
 		int threadX = threadIdx.x;
 		int threadY = threadIdx.y;
 		sharedPosition.x = min(max(sharedPosition.x, 0), numCols - 1);
 		sharedPosition.y = min(max(sharedPosition.y, 0), numRows - 1);
 		shared[threadY][threadX] = inputImage[IMAD(sharedPosition.y, numCols, sharedPosition.x)];
+		if (threadX < FILTER_WIDTH && threadY < FILTER_WIDTH) 
+		{
+			filterShared[threadY][threadX] = filterV[IMAD(threadY, FILTER_WIDTH, threadX)];
+		}
 		__syncthreads();
 		if (threadX < TILE_SIZE && threadY < TILE_SIZE && absoluteImagePosition.x < numCols && absoluteImagePosition.y <  numRows)
 		{
-			const T* filterV = filter->getFilter();
-			T result = FORLOOP<T,int,FILTER_WIDTH - 1>()([&result, filterV, &shared, threadX, threadY](int yOffset)
+			
+			T result(0.0);
+#pragma unroll FILTER_WIDTH
+			for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
 			{
-				return FORLOOP<T,int,FILTER_WIDTH - 1>()([&result, filterV, &shared, threadX, threadY, yOffset](int xOffset)
+#pragma unroll FILTER_WIDTH
+				for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
+				{
+					result += filterShared[yOffset][xOffset] * shared[yOffset + threadY][xOffset + threadX];
+				}
+			}
+			/*
+			const T* filterV = filter->getFilter();
+			T result = ForLoop<T, FILTER_WIDTH - 1>()([&result, filterV, &shared, threadX, threadY](int yOffset)
+			{
+				return ForLoop<T, FILTER_WIDTH - 1>()([&result, filterV, &shared, threadX, threadY, yOffset](int xOffset)
 				{
 					return filterV[IMAD(yOffset, FILTER_WIDTH, xOffset)] * shared[yOffset + threadY][xOffset + threadX];
 				});
 			});
-
-
-
+			
+			*/
 			outputImage[IMAD(absoluteImagePosition.y, numCols, absoluteImagePosition.x)] = result;
 		}
 	}
@@ -193,44 +216,16 @@ struct X : X_<T, std::integral_constant<T, N>> {};
 		{
 			switch (filter->getWidth())
 			{
-			case 3:
-			{
-				Filter<T, 3> * ptr = (Filter<T, 3> *) (deviceFilters.get() + offset);
-				const int BLOCK_SIZE = 32;
-				const int FILTER_WIDTH = 3;
-				const int TILE_SIZE = 30;
-				const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);
-				const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);
-				convolutionGPUShared<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
-				//checkCudaErrors(cudaDeviceSynchronize());
-				break;
-			}
-			case 5:
-			{
-						Filter<T, 5> * ptr = (Filter<T, 5> *) (deviceFilters.get() + offset);
-						const int BLOCK_SIZE = 32;
-						const int FILTER_WIDTH = 5;
-						const int TILE_SIZE = 28;
-						const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);
-						const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);
-						static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH - 1), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");
-						convolutionGPUShared<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> > (ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
-						//checkCudaErrors(cudaDeviceSynchronize());
-				break;
-			}
-			case 7:
-			{
-				Filter<T, 7> * ptr = (Filter<T, 7> *) (deviceFilters.get() + offset);
-				const int BLOCK_SIZE = 32;
-				const int FILTER_WIDTH = 7;
-				const int TILE_SIZE = 26;
-				const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);
-				const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);
-				convolutionGPUShared<T,FILTER_WIDTH,BLOCK_SIZE, TILE_SIZE><< <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());
-				//checkCudaErrors(cudaDeviceSynchronize());
-				break;
-			}
+			CONVOLUTIONSHARED(1, 32, 32)
+			CONVOLUTIONSHARED(3, 32, 30)
+			CONVOLUTIONSHARED(5, 32, 28)
+			CONVOLUTIONSHARED(7, 32, 26)
+			CONVOLUTIONSHARED(9, 32, 24)
+			CONVOLUTIONSHARED(11, 32, 22)
+			CONVOLUTIONSHARED(13, 32, 20)
+			CONVOLUTIONSHARED(15, 32, 18)
 			default:
+				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
 				break;
 			}
 			offset += filter->getSize();

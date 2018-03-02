@@ -22,6 +22,14 @@
 using namespace std;
 using namespace cv;
 
+#define CONVOLUTIONGPUSLOW(FILTERWIDTH)\
+case FILTERWIDTH:\
+{\
+	Filter<T, FILTERWIDTH> * ptr = (Filter<T, FILTERWIDTH> *) (deviceFilters.get() + offset);\
+	convolutionGPUSlow << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);\
+	break;\
+}
+
 template <typename T>
 __global__ void separateChannels(const uchar4* const inputImageRGBA, int numRows, int numCols, unsigned char* const redChannel, unsigned char* const greenChannel, unsigned char* const blueChannel)
 {
@@ -164,44 +172,27 @@ namespace processing
 		const dim3 gridSize((image.getNumCols() + blockSize.x - 1) / blockSize.x, (image.getNumRows() + blockSize.y - 1) / blockSize.y, 1);
 		// kernels parameters
 		offset = 0;
-
 		for (auto& filter : filters)
 		{
 			switch (filter->getWidth())
 			{
-			case 3:
-			{
-				Filter<T, 3> * ptr = (Filter<T, 3> *) (deviceFilters.get() + offset);
-				convolutionGPUSlow << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
-				checkCudaErrors(cudaDeviceSynchronize());
-				break;
-			}
-			case 5:
-			{
-				Filter<T, 5> * ptr = (Filter<T, 5> *) (deviceFilters.get() + offset);
-				convolutionGPUSlow << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
-				checkCudaErrors(cudaDeviceSynchronize());
-
-				break;
-			}
-			case 7:
-			{
-				Filter<T, 7> * ptr = (Filter<T, 7> *) (deviceFilters.get() + offset);
-				convolutionGPUSlow << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), maxFilterWidth);
-				checkCudaErrors(cudaDeviceSynchronize());
-				break;
-			}
+			CONVOLUTIONGPUSLOW(1)
+			CONVOLUTIONGPUSLOW(3)
+			CONVOLUTIONGPUSLOW(5)
+			CONVOLUTIONGPUSLOW(7)
+			CONVOLUTIONGPUSLOW(9)
+			CONVOLUTIONGPUSLOW(11)
+			CONVOLUTIONGPUSLOW(13)
+			CONVOLUTIONGPUSLOW(15)
 			default:
+				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
 				break;
 			}
 			offset += filter->getSize();
 			shared_ptr<T> resultCPU = makeArray<T>(image.getNumPixels());
 			checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
 			results.push_back(resultCPU);
-			//image.copyDeviceGrayToHostGrayOut(deviceGrayImageOut.get());
-			//image.saveGrayImgOut("blurredImage.jpg");
 		}
-		cout << "";
 	}
 
 
