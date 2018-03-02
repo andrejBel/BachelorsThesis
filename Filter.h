@@ -11,6 +11,7 @@
 #include <device_functions.h>
 #include <cuda_runtime_api.h>
 #include <memory>
+#include <iostream>
 
 #define CPU __host__
 #define CPUGPU __device__ __host__
@@ -84,10 +85,16 @@ namespace processing
 	{
 		switch (width)
 		{
+		case 1: return make_shared<Filter<T, 1>>(filter, multiplier);
 		case 3: return make_shared<Filter<T, 3>>(filter, multiplier);
 		case 5: return make_shared<Filter<T, 5>>(filter, multiplier);
 		case 7: return make_shared<Filter<T, 7>>(filter, multiplier);
+		case 9: return make_shared<Filter<T, 9>>(filter, multiplier);
+		case 11: return make_shared<Filter<T, 11>>(filter, multiplier);
+		case 13: return make_shared<Filter<T, 13>>(filter, multiplier);
+		case 15: return make_shared<Filter<T, 15>>(filter, multiplier);
 		default:
+			std::cerr << "Filter with width:" << width << "not supported!" << endl;
 			break;
 		}
 		return shared_ptr<AbstractFilter<T>>();
@@ -96,15 +103,8 @@ namespace processing
 	template<typename T>
 	inline shared_ptr<AbstractFilter<T>> createFilter(uint width, T * filter, const T  multiplier)
 	{
-		switch (width)
-		{
-		case 3: return make_shared<Filter<T, 3>>(filter, multiplier);
-		case 5: return make_shared<Filter<T, 5>>(filter, multiplier);
-		case 7: return make_shared<Filter<T, 7>>(filter, multiplier);
-		default:
-			break;
-		}
-		return shared_ptr<AbstractFilter<T>>();
+		vector<T> filterVec(filter, filter + width);
+		return createFilter<T>(width, filterVec, multiplier);
 	}
 
 
