@@ -95,17 +95,6 @@ case FILTER_W:\
 namespace processing
 {
 
-	template <typename T, typename U>
-struct X_;
-
-template <typename T, T N>
-struct X_<T, std::integral_constant<T, N>> {};
-
-
-
-
-	
-
 	template <typename R, typename int N>
 	struct ForLoop
 	{
@@ -166,17 +155,18 @@ struct X_<T, std::integral_constant<T, N>> {};
 					result += filterShared[yOffset][xOffset] * shared[yOffset + threadY][xOffset + threadX];
 				}
 			}
+			
+			
 			/*
-			const T* filterV = filter->getFilter();
-			T result = ForLoop<T, FILTER_WIDTH - 1>()([&result, filterV, &shared, threadX, threadY](int yOffset)
+			T result = ForLoop<T, FILTER_WIDTH - 1>()( [&result, &filterShared, &shared, threadX, threadY](int yOffset)
 			{
-				return ForLoop<T, FILTER_WIDTH - 1>()([&result, filterV, &shared, threadX, threadY, yOffset](int xOffset)
+				return ForLoop<T, FILTER_WIDTH - 1>()([&result, &filterShared, &shared, threadX, threadY, yOffset](int xOffset)
 				{
-					return filterV[IMAD(yOffset, FILTER_WIDTH, xOffset)] * shared[yOffset + threadY][xOffset + threadX];
+					return filterShared[yOffset][xOffset] * shared[yOffset + threadY][xOffset + threadX];
 				});
 			});
-			
 			*/
+			
 			outputImage[IMAD(absoluteImagePosition.y, numCols, absoluteImagePosition.x)] = result;
 		}
 	}

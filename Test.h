@@ -14,6 +14,8 @@
 #include "CpuSlowConvolution.h"
 #include "CPUSlowConvolutionAsync.h"
 #include "KernelSharedMemoryManaged.h"
+#include "KernelSharedMemoryAsync.h"
+#include "KernelNaive.h"
 
 using namespace std;
 using namespace cv;
@@ -301,12 +303,14 @@ namespace processing
 						return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > 0.1;
 					}())
 					{
+
 						cout << "-----------------------" << endl;
 						cout << "Index: " << j << ", epsilon: " << epsilon_ << endl;
 						cout << runnables_[0]->getDescription() << ": " << resultFirst.get()[j] << endl;
 						cout << runnables_[1]->getDescription() << ": " << resultSecond.get()[j] << endl;
 						cout << runnables_[0]->getDescription() << " - " << runnables_[1]->getDescription() << ": " << resultFirst.get()[j] - resultSecond.get()[j] << endl;
 						cout << "-----------------------" << endl;
+						
 					}
 				}
 			}
@@ -370,14 +374,14 @@ namespace processing
 	{
 		Test<T>::Builder builder;
 		builder
-		//.addFilter(Test<T>::get1x1Filter())
+		.addFilter(Test<T>::get1x1Filter())
 		.addFilter(Test<T>::get3x3Filter())
 		.addFilter(Test<T>::get5x5Filter())
-		//.addFilter(Test<T>::get7x7Filter())
-		//.addFilter(Test<T>::get9x9Filter())
-		//.addFilter(Test<T>::get11x11Filter())
-		//.addFilter(Test<T>::get13x13Filter())
-		//.addFilter(Test<T>::get15x15Filter())
+		.addFilter(Test<T>::get7x7Filter())
+		.addFilter(Test<T>::get9x9Filter())
+		.addFilter(Test<T>::get11x11Filter())
+		.addFilter(Test<T>::get13x13Filter())
+		.addFilter(Test<T>::get15x15Filter())
 		.addRunnable(runnable).addRunnable( make_shared<CPUSlowConvolutionAsync<T>>()).setReplications(replications);
 		builder.build()();
 	}

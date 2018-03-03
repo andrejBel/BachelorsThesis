@@ -33,7 +33,9 @@ public:
 	void joinAll();
 
 	ThreadPool::Action getNextAction();
-	ThreadPool(int c);
+	ThreadPool(int c = 1);
+
+
 
 	ThreadPool(const ThreadPool& other) = delete;
 

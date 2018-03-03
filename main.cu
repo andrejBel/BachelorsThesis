@@ -7,17 +7,28 @@
 #include <vector>
 #include <memory>
 
+#include "KernelNaive.cu"
 #include "KernelSlowConvolution.cu"
 #include "KernelSlowConvolutionNoEdgeCopy.cu"
 #include "KernelSharedMemory.cu"
 #include "KernelSharedMemoryManaged.cu"
+#include "KernelSharedMemoryAsync.cu"
+
 #include "Filter.cu"
 #include "CpuSlowConvolution.cpp"
 #include "CPUSlowConvolutionAsync.cpp"
+
 #include <vector>
 #include <algorithm>
 #include "Test.h"
 #include "ThreadPool.h"
+
+#include <cuda.h>
+#include <helper_cuda.h>
+#include <device_functions.h>
+#include <cuda_runtime_api.h>
+#include <cuda_runtime.h>
+#include "opencv2/core/utility.hpp"
 
 using namespace cv;
 using namespace std;
@@ -51,27 +62,31 @@ void launch_kernel()
 	//cudaStreamSynchronize(0);
 }
 
+__global__ void kernel(float * input, float value, int n) 
+{
+	for (size_t i = 0; i < n  ; i++)
+	{
+		input[i] = value;
+	}
+}
+
 
 int main()
 {
+
 	allocateMemmoryDevice<uchar>(1);
+	
 
-
+	
 	//Test<float>::testAllAgainstCpu();
 	//Test<float>::testAgainstCpuSingleCore(make_shared<KernelSharedMemory<float>>(), 1);
 	//cudaDeviceSetCacheConfig(cudaFuncCache::cudaFuncCachePreferL1);
 	//Test<float>::testAloneForManaged(make_shared<CpuSlowConvolution<float>>(), 2);
-	Test<float>::Builder()
-	.addFilter(Test<float>::get3x3Filter())
-	.addFilter(Test<float>::get3x3Filter())
-	.addFilter(Test<float>::get3x3Filter())
-	.addFilter(Test<float>::get3x3Filter())
-	.addFilter(Test<float>::get3x3Filter())
-	.addFilter(Test<float>::get3x3Filter())
-	.setReplications(10)
-	.addRunnable(make_shared<KernelSharedMemory<float>>()).
-	build()();
-	
+
+
+#define TYPE float
+	Test<TYPE>::testAgainstCpuMulticore(make_shared<KernelSharedMemory<TYPE>>());
+	Test<TYPE>::testAgainstCpuMulticore(make_shared<KernelSharedMemoryManaged<TYPE>>());
 	//Test<float>::testAlone(make_shared<CpuSlowConvolution<float>>(), 2);
 	//Test<float>::testAlone(make_shared<CpuSlowConvolution<float>>(), 2);
 	
@@ -79,7 +94,7 @@ int main()
 	//Test<float>::testAloneForManaged(make_shared<KernelSharedMemory<float>>(), 10);
 	//Test<float>::testAloneForManaged(make_shared<KernelSlowConvolutionNoEdgeCopy<float>>(), 10);
 	//Test<float>::testAloneForManaged(make_shared<KernelSharedMemory<float>>(), 5);
-	//cudaDeviceReset();
+	cudaDeviceReset();
 	return 0;
 }
 
