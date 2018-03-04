@@ -20,7 +20,6 @@
 #include <thread>
 #include <algorithm>
 #include <type_traits>
-#include "ThreadPool.h"
 
 using namespace std;
 
@@ -32,73 +31,158 @@ case FILTER_W:\
 	const int BLOCK_SIZE = BLOCK_S;\
 	const int FILTER_WIDTH = FILTER_W;\
 	const int TILE_SIZE = TILE_S;\
-	static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH - 1), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");\
+	static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH / 2), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");\
 	const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);\
-	const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);\
+	const dim3 gridSize((colsForGridX + TILE_SIZE - 1) / TILE_SIZE, (rowsForGridY + TILE_SIZE - 1) / TILE_SIZE, 1);\
 	convolutionGPUSharedAsync<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());\
 	break;\
 }
 
-#define MERAJ(BLOCK_S,TILE_S,FILTER_W)\
-{\
-	cv::TickMeter m;\
-	Filter<T, FILTER_W> * ptr = (Filter<T, FILTER_W> *) (deviceFilters.get() + offset);\
-	const int BLOCK_SIZE = BLOCK_S;\
-	const int FILTER_WIDTH = FILTER_W;\
-	const int TILE_SIZE = TILE_S;\
-	static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH - 1), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");\
-	const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);\
-	const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);\
-	m.start();\
-	convolutionGPUShared<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());\
-	m.stop();\
-		checkCudaErrors(cudaDeviceSynchronize());\
-	cout << "Block size: " << BLOCK_SIZE << ", TILE_SIZE: " << TILE_SIZE << ", FILTERWIDTH: " << FILTER_WIDTH << ", time: " << m.getTimeMicro() << endl;\
-}
-
 #define IMAD(a, b, c) ( __mul24((a), (b)) + (c) )
+
+
 
 namespace processing
 {
+	
+	template <typename T = void>
+	__device__ void printFromKernel(const char *description, int what)
+	{
+		printf("%s: %d \n", description, what);
+	}
+
+	template <typename T = void>
+	__device__ void printFromKernel(const char *description, double what)
+	{
+		printf("%s: %f \n", description, what);
+	}
+
+	template <typename T = void>
+	__device__ void printFromKernel(const char *description, float what)
+	{
+		printf("%s: %f \n", description, what);
+	}
 
 	template<typename T, typename int FILTER_WIDTH, typename int BLOCK_SIZE, typename int TILE_SIZE>
-	__global__ void convolutionGPUSharedAsync(processing::Filter<T, FILTER_WIDTH> * filter, const int numRows, const int numCols,int xOffset, int yOffset , uchar * inputImage, T * outputImage)
+	__global__ void convolutionGPUSharedAsync(processing::Filter<T, FILTER_WIDTH> * filter, const int numRows, const int numCols, uchar * inputImage, T * outputImage)
 	{
-
-		int2 absoluteImagePosition;
-		absoluteImagePosition.x = blockIdx.x * TILE_SIZE + threadIdx.x + xOffset;
-		absoluteImagePosition.y = blockIdx.y *  TILE_SIZE + threadIdx.y + yOffset;
-		int2 sharedPosition;
-		sharedPosition.x = absoluteImagePosition.x - (FILTER_WIDTH / 2);
-		sharedPosition.y = absoluteImagePosition.y - (FILTER_WIDTH / 2);
-		const T* filterV = filter->getFilter();
-		__shared__ T filterShared[FILTER_WIDTH][FILTER_WIDTH];
-		__shared__ uchar shared[BLOCK_SIZE][BLOCK_SIZE];
-		int threadX = threadIdx.x;
-		int threadY = threadIdx.y;
-		sharedPosition.x = min(max(sharedPosition.x, 0), numCols - 1);
-		sharedPosition.y = min(max(sharedPosition.y, 0), numRows - 1);
-		shared[threadY][threadX] = inputImage[IMAD(sharedPosition.y, numCols, sharedPosition.x)];
-		if (threadX < FILTER_WIDTH && threadY < FILTER_WIDTH)
-		{
-			filterShared[threadY][threadX] = filterV[IMAD(threadY, FILTER_WIDTH, threadX)];
-		}
-		__syncthreads();
-		if (threadX < TILE_SIZE && threadY < TILE_SIZE && absoluteImagePosition.x < numCols && absoluteImagePosition.y <  numRows)
-		{
-
-			T result(0.0);
-#pragma unroll FILTER_WIDTH
-			for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
+		//if ((IMAD(blockIdx.y, TILE_SIZE, threadIdx.y)*numCols  + IMAD(blockIdx.x, TILE_SIZE, threadIdx.x)) == 1)
+		//{
+			
+			//printFromKernel("Filter width", FILTER_WIDTH);
+			//printFromKernel("TILE size", TILE_SIZE);
+			//printFromKernel("BLOCK size", BLOCK_SIZE);
+			__shared__ T filterShared[FILTER_WIDTH][FILTER_WIDTH];
+			__shared__ float shared[BLOCK_SIZE * 2][BLOCK_SIZE * 2];
+			const int smallTile = 2;
+			const int threadX = threadIdx.x * smallTile;
+			const int threadY = threadIdx.y * smallTile;
+			int2 absoluteImagePosition;
+			absoluteImagePosition.x = IMAD(blockIdx.x, TILE_SIZE, threadIdx.x) * smallTile;
+			absoluteImagePosition.y = IMAD(blockIdx.y, TILE_SIZE, threadIdx.y) * smallTile;
+			//printFromKernel("Absolute image position x", absoluteImagePosition.x);
+			//printFromKernel("Absolute image position y", absoluteImagePosition.y);
+			
+			int2 sharedPosition[smallTile][smallTile];
+			#pragma unroll smallTile
+			for (int y = 0; y < smallTile; ++y)
 			{
-#pragma unroll FILTER_WIDTH
-				for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
+				#pragma unroll smallTile
+				for (int x = 0; x < smallTile; ++x)
 				{
-					result += filterShared[yOffset][xOffset] * shared[yOffset + threadY][xOffset + threadX];
+					sharedPosition[y][x].x = absoluteImagePosition.x - (FILTER_WIDTH / 2) + x;
+					sharedPosition[y][x].y = absoluteImagePosition.y - (FILTER_WIDTH / 2) + y;
+					sharedPosition[y][x].x = min(max(sharedPosition[y][x].x, 0), numCols - 1);
+					sharedPosition[y][x].y = min(max(sharedPosition[y][x].y, 0), numRows - 1);
+					shared[threadY + y][threadX + x] = inputImage[IMAD(sharedPosition[y][x].y, numCols, sharedPosition[y][x].x)];
 				}
 			}
-			outputImage[IMAD(absoluteImagePosition.y, numCols, absoluteImagePosition.x)] = result;
-		}
+			const T* filterV = filter->getFilter();
+			if ((threadX / 2) < FILTER_WIDTH && (threadY / 2) < FILTER_WIDTH)
+			{
+				filterShared[threadY / 2][threadX / 2] = filterV[IMAD(threadY / 2, FILTER_WIDTH, threadX / 2)];
+			}
+			//printFromKernel("shared positon x 1", sharedPosition1.x);
+			//printFromKernel("shared positon y 1", sharedPosition1.y);
+
+			//printFromKernel("shared positon x 2", sharedPosition2.x);
+			//printFromKernel("shared positon y 2", sharedPosition2.y);
+			__syncthreads();
+
+			if (threadX < TILE_SIZE * 2 && threadY < TILE_SIZE * 2)
+			{
+				T result1 = 0.0; //00
+				T result2 = 0.0; //01
+				T result3 = 0.0; //10
+				T result4 = 0.0; //11
+				T filterValue = 0.0;
+				if ((absoluteImagePosition.x + 1) < numCols && (absoluteImagePosition.y + 1) <  numRows) // all from small tile xx
+				{																						//                      xx
+					#pragma unroll FILTER_WIDTH
+					for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
+					{
+					#pragma unroll FILTER_WIDTH
+						for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
+						{
+							filterValue = filterShared[yOffset][xOffset];
+							result1 += filterValue * shared[yOffset + threadY][xOffset + threadX];
+							result2 += filterValue * shared[yOffset + threadY][xOffset + threadX + 1];
+							result3 += filterValue * shared[yOffset + threadY + 1][xOffset + threadX];
+							result4 += filterValue * shared[yOffset + threadY + 1][xOffset + threadX + 1];
+						}
+					}
+					outputImage[IMAD(absoluteImagePosition.y, numCols, absoluteImagePosition.x)] = result1;
+					outputImage[IMAD(absoluteImagePosition.y, numCols, absoluteImagePosition.x + 1)] = result2;
+					outputImage[IMAD(absoluteImagePosition.y + 1, numCols, absoluteImagePosition.x)] = result3;
+					outputImage[IMAD(absoluteImagePosition.y + 1, numCols, absoluteImagePosition.x + 1)] = result4;
+				}
+				else if ((absoluteImagePosition.x + 1) < numCols && (absoluteImagePosition.y) <  numRows) // xx
+				{																						  //  00				
+				#pragma unroll FILTER_WIDTH
+				for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
+				{
+				#pragma unroll FILTER_WIDTH
+					for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
+					{
+						filterValue = filterShared[yOffset][xOffset];
+						result1 += filterValue * shared[yOffset + threadY][xOffset + threadX];
+						result2 += filterValue * shared[yOffset + threadY][xOffset + threadX + 1];				
+					}
+				}
+				outputImage[IMAD(absoluteImagePosition.y, numCols, absoluteImagePosition.x)] = result1;
+				outputImage[IMAD(absoluteImagePosition.y, numCols, absoluteImagePosition.x + 1)] = result2;
+				}
+				else if ((absoluteImagePosition.x) < numCols && (absoluteImagePosition.y + 1) <  numRows)// x0
+				{																						 //  x0	
+				#pragma unroll FILTER_WIDTH
+				for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
+				{
+				#pragma unroll FILTER_WIDTH
+					for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
+					{
+						filterValue = filterShared[yOffset][xOffset];
+						result1 += filterValue * shared[yOffset + threadY][xOffset + threadX];
+						result3 += filterValue * shared[yOffset + threadY + 1][xOffset + threadX];
+					}
+				}
+				outputImage[IMAD(absoluteImagePosition.y, numCols, absoluteImagePosition.x)] = result1;
+				outputImage[IMAD(absoluteImagePosition.y + 1, numCols, absoluteImagePosition.x)] = result3;
+				}
+				else if (absoluteImagePosition.x < numCols && absoluteImagePosition.y <  numRows)  // x0
+				{																					// 00
+				#pragma unroll FILTER_WIDTH
+				for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
+				{
+				#pragma unroll FILTER_WIDTH
+					for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
+					{
+						result1 += filterShared[yOffset][xOffset] * shared[yOffset + threadY][xOffset + threadX];
+					}
+				}
+					outputImage[IMAD(absoluteImagePosition.y, numCols, absoluteImagePosition.x)] = result1;
+				}
+			}
+			//if ((IMAD(blockIdx.y, TILE_SIZE, threadIdx.y)*numCols + IMAD(blockIdx.x, TILE_SIZE, threadIdx.x)) == 0)	{}
 	}
 
 	template<typename T>
@@ -123,39 +207,41 @@ namespace processing
 				maxFilterWidth = filter->getSize();
 			}
 		});
-		offset = 0;
 		// filter allocation and initialization
-		const int numberOfStreams = 2;
-		CudaStream  streams[numberOfStreams];
-		ThreadPool threadPools[numberOfStreams];
-		// stream initialization
 		shared_ptr<T> deviceGrayImageOut = allocateMemmoryDevice<T>(image.getNumPixels());
 		uchar* hostGrayImage = image.getInputGrayPointer();
 
 		shared_ptr<uchar> deviceGrayImageIn = allocateMemmoryDevice<uchar>(image.getNumPixels());
 		checkCudaErrors(cudaMemcpy(deviceGrayImageIn.get(), hostGrayImage, image.getNumPixels() * sizeof(uchar), cudaMemcpyHostToDevice));
-		checkCudaErrors(cudaDeviceSynchronize());
 		// memory allocation
-		size_t pixels = image.getNumPixels(); 
-		int numberOfColumns = image.getNumCols(); // x
-		int numberOfRows = image.getNumRows(); // y
-		const int coeficientsForOffset[numberOfStreams][2] = { {0,0}, {1, 1} };
+		int colsForGridX = (image.getNumCols() + 1) / 2;
+		int rowsForGridY = (image.getNumRows() + 1) / 2;
+
+		offset = 0;
 		for (auto& filter : filters)
 		{
-			shared_ptr<T> resultCpu = makeArray<T>(pixels);
-			checkCudaErrors(cudaHostRegister(resultCpu.get(), pixels * sizeof(T), cudaHostRegisterPortable));
-			checkCudaErrors(cudaDeviceSynchronize());
 			switch (filter->getWidth())
 			{
-			
+				CONVOLUTIONSHAREDASYNC(1, 32, 32)
+				CONVOLUTIONSHAREDASYNC(3, 32, 31)
+				CONVOLUTIONSHAREDASYNC(5, 32, 30)
+				CONVOLUTIONSHAREDASYNC(7, 32, 29)
+				CONVOLUTIONSHAREDASYNC(9, 32, 28)
+				CONVOLUTIONSHAREDASYNC(11, 32, 27)
+				CONVOLUTIONSHAREDASYNC(13, 32, 26)
+				CONVOLUTIONSHAREDASYNC(15, 32, 25)
+				
 			
 			default:
 				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
 				break;
 			}
 			offset += filter->getSize();
-			checkCudaErrors(cudaHostUnregister(resultCpu.get()));
-			results.push_back(resultCpu);
+			shared_ptr<T> resultCPU = makeArray<T>(image.getNumPixels());
+			checkCudaErrors(cudaHostRegister(resultCPU.get(), image.getNumPixels() * sizeof(T), cudaHostRegisterPortable));
+			checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
+			checkCudaErrors(cudaHostUnregister(resultCPU.get()));
+			results.push_back(resultCPU);
 		}
 		cout << "";
 	}

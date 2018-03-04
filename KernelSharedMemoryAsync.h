@@ -4,7 +4,7 @@
 #include "Filter.h"
 #include <memory>
 #include <string>
-
+#include "ThreadPool.h"
 using namespace std;
 namespace processing
 {
@@ -28,7 +28,7 @@ namespace processing
 
 	private:
 
-		
+		ThreadPool threadpool_;
 
 
 	};
