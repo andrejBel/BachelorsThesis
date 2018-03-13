@@ -141,5 +141,31 @@ namespace processing
 		return memory;
 	}
 
+	const int MAXFILTERWIDTH = 15;
+	__constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH];
+
+	template <typename T = void>
+	__device__ void printFromKernel(const char *description, int what)
+	{
+		printf("%s: %d \n", description, what);
+	}
+
+	template <typename T = void>
+	__device__ void printFromKernel(const char *description, double what)
+	{
+		printf("%s: %f \n", description, what);
+	}
+
+	template <typename T = void>
+	__device__ void printFromKernel(const char *description, float what)
+	{
+		printf("%s: %f \n", description, what);
+	}
+
+	template <typename T = void>
+	__device__ void printFromKernel(const char *description, uint what)
+	{
+		printf("%s: %d \n", description, what);
+	}
 
 }

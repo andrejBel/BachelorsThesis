@@ -134,6 +134,7 @@ case FILTERWIDTH:\
 			}
 			offset += filter->getSize();
 			shared_ptr<T> resultCPU = makeArray<T>(image.getNumPixels());
+			checkCudaErrors(cudaDeviceSynchronize());
 			checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
 			results.push_back(resultCPU);		
 		}

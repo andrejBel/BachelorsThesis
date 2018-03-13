@@ -141,6 +141,7 @@ namespace processing
 		{
 			filterShared[threadY][threadX] = filterV[IMAD(threadY, FILTER_WIDTH, threadX)];
 		}
+
 		__syncthreads();
 		if (threadX < TILE_SIZE && threadY < TILE_SIZE && absoluteImagePosition.x < numCols && absoluteImagePosition.y <  numRows)
 		{
