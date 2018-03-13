@@ -121,6 +121,7 @@ case FILTERWIDTH:\
 			checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(T), cudaMemcpyDeviceToHost));
 			results.push_back(resultCPU);
 		}
+		checkCudaErrors(cudaDeviceSynchronize());
 	}
 
 }

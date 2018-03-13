@@ -31,6 +31,8 @@ namespace processing
 
 		CPUGPUINLINE virtual uint getSize() const = 0;
 
+		//CPUGPUINLINE virtual const T* getFilter() const = 0;
+
 		CPU virtual void copyWholeFilterToDeviceMemory(void * destination) const = 0;
 
 		CPU virtual ~AbstractFilter() {};
@@ -46,7 +48,7 @@ namespace processing
 
 		CPU Filter(T* filter, const T multiplier = 1.0);
 
-		CPUGPUINLINE const T* getFilter()
+		CPUGPUINLINE const T* getFilter() const
 		{
 			return filter_;
 		}
@@ -55,6 +57,8 @@ namespace processing
 		{
 			return FILTER_WIDTH;
 		}
+
+
 
 		CPU virtual void copyWholeFilterToDeviceMemory(void * destination) const override;
 
