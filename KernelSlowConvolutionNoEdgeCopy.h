@@ -2,23 +2,23 @@
 #include "Runnable.h"
 #include <vector>
 #include "Filter.h"
+#include "processing.h"
 #include <memory>
 
 using namespace std;
 namespace processing
 {
 
-	template<typename T>
-	class KernelSlowConvolutionNoEdgeCopy : public Runnable<T>
+	class KernelSlowConvolutionNoEdgeCopy : public Runnable
 	{
-		static_assert(std::is_floating_point<T>::value, "Class KernelSlowConvolution can only be instantiazed with float, double or long double");
+
 	public:
 
 		KernelSlowConvolutionNoEdgeCopy();
 
-		DELETECOPYASSINGMENT(KernelSlowConvolutionNoEdgeCopy<T>)
+		DELETECOPYASSINGMENT(KernelSlowConvolutionNoEdgeCopy)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results) override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{

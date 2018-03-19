@@ -2,6 +2,7 @@
 #include "Runnable.h"
 #include <vector>
 #include "Filter.h"
+#include "processing.h"
 #include <memory>
 #include <string>
 #include "ThreadPool.h"
@@ -9,17 +10,17 @@ using namespace std;
 namespace processing
 {
 
-	template<typename T>
-	class KernelSharedMemoryAsync : public Runnable<T>
+
+	class KernelSharedMemoryAsync : public Runnable
 	{
-		static_assert(std::is_floating_point<T>::value, "Class KernelSlowConvolution can only be instantiazed with float, double or long double");
+
 	public:
 
 		KernelSharedMemoryAsync();
 
-		DELETECOPYASSINGMENT(KernelSharedMemoryAsync<T>)
+		DELETECOPYASSINGMENT(KernelSharedMemoryAsync)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results)  override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)  override;
 
 		virtual string getDescription() override
 		{
@@ -32,23 +33,6 @@ namespace processing
 
 
 	};
-
-	struct CudaStream
-	{
-		CudaStream()
-		{
-			cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking);
-		}
-
-		~CudaStream()
-		{
-			checkCudaErrors(cudaStreamDestroy(stream_));
-		}
-
-		cudaStream_t stream_;
-
-	};
-
 
 }
 

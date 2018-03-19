@@ -1,6 +1,7 @@
 #pragma once
 #include "Runnable.h"
 #include <vector>
+#include "processing.h"
 #include "Filter.h"
 #include <memory>
 #include "ThreadPool.h"
@@ -10,17 +11,17 @@ using namespace std;
 namespace processing
 {
 
-	template<typename T>
-	class CPUSlowConvolutionAsync : public Runnable<T>
+	
+	class CPUSlowConvolutionAsync : public Runnable
 	{
-		static_assert(std::is_floating_point<T>::value, "Class KernelSlowConvolution can only be instantiazed with float, double or long double");
+		
 	public:
 
 		CPUSlowConvolutionAsync();
 
-		DELETECOPYASSINGMENT(CPUSlowConvolutionAsync<T>)
+		DELETECOPYASSINGMENT(CPUSlowConvolutionAsync)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results) override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{
@@ -28,7 +29,7 @@ namespace processing
 		}
 
 		template <typename int FILTER_WIDTH>
-		void divideAndConquer(size_t leftBorder, size_t rightBorder, int numCols, int numRows, Filter<T, FILTER_WIDTH>* filter, const uchar* inputImage, T* outputImage);
+		void divideAndConquer(size_t leftBorder, size_t rightBorder, int numCols, int numRows, Filter<FILTER_WIDTH>* filter, const float* inputImage, float* outputImage);
 
 	private:
 		ThreadPool threadPool_;
@@ -38,22 +39,20 @@ namespace processing
 		__host__ __forceinline__ int max(int a, int b);
 
 		template <typename int FILTER_WIDTH>
-		void convolution(ImageFactory& image, Filter<T, FILTER_WIDTH> * filter, T* outputImage);
+		void convolution(ImageFactory& image, Filter<FILTER_WIDTH> * filter, float* outputImage);
 
 		static const unsigned int NUMBER_OF_THREADS = 4;
 
 	};
 
 
-
-	template<typename T>
 	template<typename int FILTER_WIDTH>
-	inline void CPUSlowConvolutionAsync<T>::convolution(ImageFactory & image, Filter<T, FILTER_WIDTH>* filter, T * outputImage)
+	inline void CPUSlowConvolutionAsync::convolution(ImageFactory & image, Filter<FILTER_WIDTH>* filter, float * outputImage)
 	{
 		auto columns = image.getNumCols();
 		auto rows = image.getNumRows();
 		auto pixels = image.getNumPixels();
-		const uchar * inputImage = image.getInputGrayPointer();
+		const float * inputImage = image.getInputGrayPointerFloat();
 		
 		double difference = pixels;
 		difference = std::ceil(difference/NUMBER_OF_THREADS);
@@ -71,13 +70,12 @@ namespace processing
 
 	}
 
-	template<typename T>
 	template<typename int FILTER_WIDTH>
-	inline void CPUSlowConvolutionAsync<T>::divideAndConquer(size_t leftBorder, size_t rightBorder, int numCols, int numRows, Filter<T, FILTER_WIDTH>* filter, const uchar* inputImage, T* outputImage)
+	inline void CPUSlowConvolutionAsync::divideAndConquer(size_t leftBorder, size_t rightBorder, int numCols, int numRows, Filter<FILTER_WIDTH>* filter, const float* inputImage, float* outputImage)
 	{
 		int2 pointPosition;
 		auto filterV = filter->getFilter();
-		T result(0.0);
+		float result(0.0);
 		int column; //x
 		int row; //y
 		for (size_t index1D = leftBorder; index1D < rightBorder; index1D++)

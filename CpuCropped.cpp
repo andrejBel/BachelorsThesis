@@ -3,32 +3,32 @@
 
 #include <vector>
 #include <memory>
-#include "Filter.h"
 #include <algorithm>
 #include <iostream>
+
 
 #define ACCEPTFILTER(FILTERWIDTH)\
 case FILTERWIDTH:\
 {\
-	Filter<T, FILTERWIDTH> * ptr = (Filter<T, FILTERWIDTH> *) (filter.get());\
-	result = makeArray<T>((image.getNumCols() - (FILTERWIDTH - 1)) * (image.getNumRows() - (FILTERWIDTH - 1)));\
+	Filter<FILTERWIDTH> * ptr = (Filter<FILTERWIDTH> *) (filter.get());\
+	result = makeArray<float>((image.getNumCols() - (FILTERWIDTH - 1)) * (image.getNumRows() - (FILTERWIDTH - 1)));\
 	convolution(image, ptr, result.get());\
 	break;\
 }
 
 namespace processing
 {
-	template<typename T>
-	CpuCropped<T>::CpuCropped()
+
+	CpuCropped::CpuCropped()
 	{
 	}
 
-	template<typename T>
-	void CpuCropped<T>::run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results)
+
+	void CpuCropped::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
 	{
 		for (auto& filter : filters)
 		{
-			shared_ptr<T> result;
+			shared_ptr<float> result;
 			switch (filter->getWidth())
 			{			
 				ACCEPTFILTER(1)
@@ -47,14 +47,13 @@ namespace processing
 		}
 	}
 
-	template<typename T>
-	__host__ __forceinline__ int CpuCropped<T>::min(int a, int b)
+
+	__host__ __forceinline__ int CpuCropped::min(int a, int b)
 	{
 		return a < b ? a : b;
 	}
 
-	template<typename T>
-	__host__ __forceinline__ int CpuCropped<T>::max(int a, int b)
+	__host__ __forceinline__ int CpuCropped::max(int a, int b)
 	{
 		return a > b ? a : b;
 	}

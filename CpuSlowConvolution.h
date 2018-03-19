@@ -2,6 +2,8 @@
 #include "Runnable.h"
 #include <vector>
 #include "Filter.h"
+#include "processing.h"
+
 #include <memory>
 
 using namespace std;
@@ -9,17 +11,16 @@ using namespace std;
 namespace processing 
 {
 
-	template<typename T>
-	class CpuSlowConvolution : public Runnable<T>
+	class CpuSlowConvolution : public Runnable
 	{
-		static_assert(std::is_floating_point<T>::value, "Class KernelSlowConvolution can only be instantiazed with float, double or long double");
+
 	public:
 
 		CpuSlowConvolution();
 
-		DELETECOPYASSINGMENT(CpuSlowConvolution<T>)
+		DELETECOPYASSINGMENT(CpuSlowConvolution)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results) override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{
@@ -34,22 +35,20 @@ namespace processing
 		__host__ __forceinline__ int max(int a, int b);
 
 		template <typename int FILTER_WIDTH>
-		void convolution(ImageFactory& image, Filter<T, FILTER_WIDTH> * filter, T* outputImage);
+		void convolution(ImageFactory& image, Filter<FILTER_WIDTH> * filter, float* outputImage);
 
 	};
 
 
-
-	template<typename T>
 	template<typename int FILTER_WIDTH>
-	inline void CpuSlowConvolution<T>::convolution(ImageFactory & image, Filter<T, FILTER_WIDTH>* filter, T * outputImage)
+	inline void CpuSlowConvolution::convolution(ImageFactory & image, Filter<FILTER_WIDTH>* filter, float * outputImage)
 	{
 		auto columns = image.getNumCols();
 		auto rows = image.getNumRows();
-		uchar * inputImage = image.getInputGrayPointer();
+		const float* inputImage = image.getInputGrayPointerFloat();
 		int2 pointPosition;
-		auto filterV = filter->getFilter();
-		T result(0.0);
+		const float* filterV = filter->getFilter();
+		float result(0.0);
 		for (int row = 0; row < rows; ++row)
 		{
 			for (int column = 0; column < columns; ++column)

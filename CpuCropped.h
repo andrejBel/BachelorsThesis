@@ -2,6 +2,7 @@
 #include "Runnable.h"
 #include <vector>
 #include "Filter.h"
+#include "processing.h"
 #include <memory>
 
 using namespace std;
@@ -9,17 +10,17 @@ using namespace std;
 namespace processing
 {
 
-	template<typename T>
-	class CpuCropped : public Runnable<T>
+	
+	class CpuCropped : public Runnable
 	{
-		static_assert(std::is_floating_point<T>::value, "Class CpuCropped can only be instantiazed with float, double or long double");
+
 	public:
 
 		CpuCropped();
 
-		DELETECOPYASSINGMENT(CpuCropped<T>)
+		DELETECOPYASSINGMENT(CpuCropped)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results) override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{
@@ -34,22 +35,22 @@ namespace processing
 		__host__ __forceinline__ int max(int a, int b);
 
 		template <typename int FILTER_WIDTH>
-		void convolution(ImageFactory& image, Filter<T, FILTER_WIDTH> * filter, T* outputImage);
+		void convolution(ImageFactory& image, Filter<FILTER_WIDTH> * filter, float* outputImage);
 
 	};
 
 
 
-	template<typename T>
+	
 	template<typename int FILTER_WIDTH>
-	inline void CpuCropped<T>::convolution(ImageFactory & image, Filter<T, FILTER_WIDTH>* filter, T * outputImage)
+	inline void CpuCropped::convolution(ImageFactory & image, Filter<FILTER_WIDTH>* filter, float * outputImage)
 	{
 		auto columns = image.getNumCols();
 		auto rows = image.getNumRows();
-		uchar * inputImage = image.getInputGrayPointer();
+		const float * inputImage = image.getInputGrayPointerFloat();
 		int2 pointPosition;
 		auto filterV = filter->getFilter();
-		T result(0.0);
+		float result(0.0);
 		for (int row = (FILTER_WIDTH / 2); row < rows - (FILTER_WIDTH / 2); ++row)
 		{
 			for (int column = (FILTER_WIDTH / 2); column < columns - (FILTER_WIDTH / 2); ++column)

@@ -16,6 +16,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include "Filter.h"
 
 using namespace std;
 using namespace cv;
@@ -24,7 +25,15 @@ using namespace cv;
 
 namespace processing 
 {
-	template <typename T>
+	static const uint MAX_IMAGE_WIDTH = 4200;
+	static const uint MAX_IMAGE_HEIGHT = 4200;
+	static const size_t MAX_IMAGE_RESOLUTION = MAX_IMAGE_WIDTH*MAX_IMAGE_HEIGHT;
+	static const uint PINNED_MEMORY_BUFFER_SIZE_INPUT = 5;
+	static const uint PINNED_MEMORY_BUFFER_SIZE_OUTPUT = 20;
+	static const uint PITCHED_MEMORY_BUFFER_SIZE_INPUT = 2;
+	static const uint PITCHED_MEMORY_BUFFER_SIZE_OUTPUT = 10;
+
+
 	class Runnable;
 
 	class ImageFactory
@@ -35,7 +44,7 @@ namespace processing
 		ImageFactory(const ImageFactory& other) = delete;
 
 		ImageFactory& operator=(const ImageFactory& other) = delete;
-
+	
 
 		inline uchar4* getInputRGBAPointer() 
 		{
@@ -55,6 +64,11 @@ namespace processing
 		inline uchar* getOutputGrayPointer()
 		{
 			return imageGrayOutput_.ptr<uchar>(0);
+		}
+		
+		inline float* getInputGrayPointerFloat()
+		{
+			return  imageGrayInputFloat_.get();
 		}
 
 		inline int getNumRows() 
@@ -84,6 +98,7 @@ namespace processing
 		//attributes
 		cv::Mat imageRGBAInput_;
 		cv::Mat imageGrayInput_;
+		shared_ptr<float> imageGrayInputFloat_;
 
 		cv::Mat imageRGBAOutput_;
 		cv::Mat imageGrayOutput_;
@@ -91,8 +106,10 @@ namespace processing
 	};
 
 
+
+
 	template<typename T>
-	__host__ __forceinline__ inline shared_ptr<T> makeArrayCudaHost(size_t size)
+	__host__ __forceinline__ shared_ptr<T> makeArrayCudaHost(size_t size)
 	{
 		T* memory = nullptr;
 		checkCudaErrors(cudaMallocHost((void **)&memory, size * sizeof(T)));
@@ -100,7 +117,7 @@ namespace processing
 	}
 
 	template<typename T>
-	__host__ __forceinline__ inline shared_ptr<T> makeArray(size_t size)
+	__host__ __forceinline__ shared_ptr<T> makeArray(size_t size)
 	{
 		return std::shared_ptr<T>( new T[size], [](T* p) { delete[] p; });
 	}
@@ -142,7 +159,8 @@ namespace processing
 	}
 
 	const int MAXFILTERWIDTH = 15;
-	__constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH];
+	static __constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH];
+
 
 	template <typename T = void>
 	__device__ void printFromKernel(const char *description, int what)
@@ -167,5 +185,19 @@ namespace processing
 	{
 		printf("%s: %d \n", description, what);
 	}
+
+	inline int roundUp(int numToRound, int multiple)
+	{
+		assert(multiple);
+		return ((numToRound + multiple - 1) / multiple) * multiple;
+	}
+
+	shared_ptr<float> makeDeviceFilters(vector<shared_ptr<AbstractFilter>>& filters);
+	
+	shared_ptr<AbstractFilter> createFilter(uint width, vector<float> filter, const float multiplier = 1.0);
+
+	shared_ptr<AbstractFilter> createFilter(uint width, float* filter, const float multiplier = 1.0);
+	
+	
 
 }

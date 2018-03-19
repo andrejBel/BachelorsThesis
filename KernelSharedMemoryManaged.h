@@ -2,6 +2,7 @@
 #include "Runnable.h"
 #include <vector>
 #include "Filter.h"
+#include "processing.h"
 #include <memory>
 #include <string>
 #include "ThreadPool.h"
@@ -11,17 +12,17 @@ namespace processing
 {
 	static const int THREADS_NUMBER = 4;
 
-	template<typename T>
-	class KernelSharedMemoryManaged : public Runnable<T>
+	
+	class KernelSharedMemoryManaged : public Runnable
 	{
-		static_assert(std::is_floating_point<T>::value, "Class KernelSlowConvolution can only be instantiazed with float, double or long double");
+		
 	public:
 
 		KernelSharedMemoryManaged();
 
-		DELETECOPYASSINGMENT(KernelSharedMemoryManaged<T>)
+		DELETECOPYASSINGMENT(KernelSharedMemoryManaged)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results)  override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)  override;
 
 		virtual string getDescription() override
 		{

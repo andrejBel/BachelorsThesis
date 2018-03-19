@@ -2,31 +2,30 @@
 
 #include <vector>
 #include <memory>
-#include "Filter.h"
 #include <algorithm>
 #include <iostream>
+
 
 #define ACCEPTFILTER(FILTERWIDTH)\
 case FILTERWIDTH:\
 {\
-	Filter<T, FILTERWIDTH> * ptr = (Filter<T, FILTERWIDTH> *) (filter.get());\
+	Filter<FILTERWIDTH> * ptr = (Filter<FILTERWIDTH> *) (filter.get());\
 	convolution(image, ptr, result.get());\
 	break;\
 }
 
 namespace processing 
 {
-	template<typename T>
-	CpuSlowConvolution<T>::CpuSlowConvolution()
+
+	CpuSlowConvolution::CpuSlowConvolution()
 	{
 	}
 
-	template<typename T>
-	void CpuSlowConvolution<T>::run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results)
+	void CpuSlowConvolution::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
 	{
 		for (auto& filter : filters)
 		{
-			shared_ptr<T> result = makeArray<T>(image.getNumPixels());
+			shared_ptr<float> result = makeArray<float>(image.getNumPixels());
 			switch (filter->getWidth())
 			{
 			ACCEPTFILTER(1)
@@ -45,14 +44,12 @@ namespace processing
 		}
 	}
 
-	template<typename T>
-	__host__ __forceinline__ int CpuSlowConvolution<T>::min(int a, int b)
+	__host__ __forceinline__ int CpuSlowConvolution::min(int a, int b)
 	{
 		return a < b ? a : b;
 	}
 
-	template<typename T>
-	__host__ __forceinline__ int CpuSlowConvolution<T>::max(int a, int b)
+	__host__ __forceinline__ int CpuSlowConvolution::max(int a, int b)
 	{
 		return a > b ? a : b;
 	}

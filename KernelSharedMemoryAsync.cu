@@ -6,8 +6,8 @@
 #include <cuda_runtime_api.h>
 #include <cuda_runtime.h>
 
-#include "processing.h"
-#include "Filter.h"
+
+
 
 #include "opencv2/core/utility.hpp"
 
@@ -26,18 +26,17 @@ using namespace std;
 
 #define CONVOLUTIONSHAREDASYNC(FILTER_W, BLOCK_S, TILE_S)\
 case FILTER_W:\
-{\
-	Filter<T, FILTER_W> * ptr = (Filter<T, FILTER_W> *) (deviceFilters.get() + offset);\
-	cudaMemcpyToSymbol(FILTERCUDA, ptr->getFilter(), sizeof(float)*FILTER_W*FILTER_W);\
-	const int BLOCK_SIZE = BLOCK_S;\
-	const int FILTER_WIDTH = FILTER_W;\
-	const int TILE_SIZE = TILE_S;\
-	static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH / 2), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");\
-	const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);\
-	const dim3 gridSize((colsForGridX + TILE_SIZE - 1) / TILE_SIZE, (rowsForGridY + TILE_SIZE - 1) / TILE_SIZE, 1);\
-	convolutionGPUSharedAsync<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());\
-	break;\
-}
+			{\
+				checkCudaErrors(cudaMemcpyToSymbol(FILTERCUDA,  filter->getFilter(), sizeof(float) * FILTER_W * FILTER_W));\
+				const int BLOCK_SIZE = BLOCK_S;\
+				const int FILTER_WIDTH = FILTER_W;\
+				const int TILE_SIZE = TILE_S;\
+				static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH / 2), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");\
+				const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);\
+				const dim3 gridSize((colsForGridX + TILE_SIZE - 1) / TILE_SIZE, (rowsForGridY + TILE_SIZE - 1) / TILE_SIZE, 1);\
+				convolutionGPUSharedAsync<FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(image.getNumRows(), image.getNumCols(), deviceGrayImageIn, deviceGrayImageOut, inputPitch / sizeof(float), outputPitch / sizeof(float));\
+				break;\
+			}
 
 #define IMAD(a, b, c) ( __mul24((a), (b)) + (c) )
 
@@ -48,8 +47,8 @@ namespace processing
 	
 	
 
-	template<typename T, typename int FILTER_WIDTH, typename int BLOCK_SIZE, typename int TILE_SIZE>
-	__global__ void convolutionGPUSharedAsync(const int numRows, const int numCols,const uchar * __restrict__ inputImage, T * __restrict__  outputImage, size_t inputPitch, size_t outputPitch)
+	template< typename int FILTER_WIDTH, typename int BLOCK_SIZE, typename int TILE_SIZE>
+	__global__ void convolutionGPUSharedAsync(const int numRows, const int numCols,const float * __restrict__ inputImage, float * __restrict__  outputImage, size_t inputPitch, size_t outputPitch)
 	{
 		//if ((IMAD(blockIdx.y, TILE_SIZE, threadIdx.y)*numCols  + IMAD(blockIdx.x, TILE_SIZE, threadIdx.x)) == 1)
 		//{
@@ -90,11 +89,11 @@ namespace processing
 
 			if (threadX < TILE_SIZE * 2 && threadY < TILE_SIZE * 2)
 			{
-				T result1 = 0.0; //00
-				T result2 = 0.0; //01
-				T result3 = 0.0; //10
-				T result4 = 0.0; //11
-				T filterValue = 0.0;
+				float result1 = 0.0; //00
+				float result2 = 0.0; //01
+				float result3 = 0.0; //10
+				float result4 = 0.0; //11
+				float filterValue = 0.0;
 				if ((absoluteImagePosition.x + 1) < numCols && (absoluteImagePosition.y + 1) <  numRows) // all from small tile xx
 				{																						//                      xx
 					#pragma unroll FILTER_WIDTH
@@ -164,91 +163,52 @@ namespace processing
 			//if ((IMAD(blockIdx.y, TILE_SIZE, threadIdx.y)*numCols + IMAD(blockIdx.x, TILE_SIZE, threadIdx.x)) == 0)	{}
 	}
 
-	template<typename T>
-	KernelSharedMemoryAsync<T>::KernelSharedMemoryAsync()
+
+	KernelSharedMemoryAsync::KernelSharedMemoryAsync()
 	{}
 
-	template<typename T>
-	void KernelSharedMemoryAsync<T>::run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results)
+
+	void KernelSharedMemoryAsync::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
 	{
 
-		T* deviceGrayImageOut = 0;
+		float* deviceGrayImageOut = 0;
 		size_t outputPitch = 0;
-		checkCudaErrors(cudaMallocPitch<T>(&deviceGrayImageOut, &outputPitch, image.getNumCols() * sizeof(T), image.getNumRows()));
-		uchar* hostGrayImage = image.getInputGrayPointer();
+		checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageOut, &outputPitch, image.getNumCols() * sizeof(float), image.getNumRows()));
+		const float* hostGrayImage = image.getInputGrayPointerFloat();
 		
 		// memory allocation
 		int colsForGridX = (image.getNumCols() + 1) / 2;
 		int rowsForGridY = (image.getNumRows() + 1) / 2;
 
-
-
-		uchar* deviceGrayImageIn;
+		float* deviceGrayImageIn;
 		size_t inputPitch = 0;
 
-		checkCudaErrors(cudaMallocPitch<uchar>(&deviceGrayImageIn, &inputPitch, image.getNumCols(), image.getNumRows()));
+		checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageIn, &inputPitch, image.getNumCols() * sizeof(float), image.getNumRows()));
 		cudaDeviceSynchronize();
-		checkCudaErrors(cudaMemcpy2D(deviceGrayImageIn, inputPitch, hostGrayImage, image.getNumCols(), image.getNumCols()* sizeof(uchar), image.getNumRows(), cudaMemcpyHostToDevice));
+		checkCudaErrors(cudaMemcpy2D(deviceGrayImageIn, inputPitch, hostGrayImage, image.getNumCols() * sizeof(float), image.getNumCols() * sizeof(float), image.getNumRows(), cudaMemcpyHostToDevice));
 
 
 		for (auto& filter : filters)
 		{
 			switch (filter->getWidth())
-			{
-			case 3:
-			{
-				checkCudaErrors(cudaMemcpyToSymbol(FILTERCUDA, ((Filter<T,3> *) filter.get())->getFilter(), sizeof(T) * 3 * 3));
-				const int BLOCK_SIZE = 16;
-				const int FILTER_WIDTH = 3;
-				const int TILE_SIZE = 15;
-				static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH / 2), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");
-				const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);
-				const dim3 gridSize((colsForGridX + TILE_SIZE - 1) / TILE_SIZE, (rowsForGridY + TILE_SIZE - 1) / TILE_SIZE, 1);
-				convolutionGPUSharedAsync<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(image.getNumRows(), image.getNumCols(), deviceGrayImageIn, deviceGrayImageOut, inputPitch, outputPitch / sizeof(T));
-				break;
-			}
-			case 5:
-			{
-				checkCudaErrors(cudaMemcpyToSymbol(FILTERCUDA, ((Filter<T, 5> *) filter.get())->getFilter(), sizeof(T) * 5 * 5));
-				const int BLOCK_SIZE = 16;
-				const int FILTER_WIDTH = 5;
-				const int TILE_SIZE = 14;
-				static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH / 2), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");
-				const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);
-				const dim3 gridSize((colsForGridX + TILE_SIZE - 1) / TILE_SIZE, (rowsForGridY + TILE_SIZE - 1) / TILE_SIZE, 1);
-				convolutionGPUSharedAsync<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(image.getNumRows(), image.getNumCols(), deviceGrayImageIn, deviceGrayImageOut, inputPitch, outputPitch / sizeof(T));
-				break;
-			}
-			case 15:
-			{
-				checkCudaErrors(cudaMemcpyToSymbol(FILTERCUDA, ((Filter<T, 15> *) filter.get())->getFilter(), sizeof(float)* 15 * 15));
-				const int BLOCK_SIZE = 32; 
-				const int FILTER_WIDTH = 15;
-				const int TILE_SIZE = 25; 
-				static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH / 2), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)"); 
-				const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE); 
-				const dim3 gridSize((colsForGridX + TILE_SIZE - 1) / TILE_SIZE, (rowsForGridY + TILE_SIZE - 1) / TILE_SIZE, 1); 
-				convolutionGPUSharedAsync<T, FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(image.getNumRows(), image.getNumCols(), deviceGrayImageIn, deviceGrayImageOut, inputPitch, outputPitch / sizeof(T));
-				break; 
-			}
-					
-				//CONVOLUTIONSHAREDASYNC(1, 32, 32)
-				//CONVOLUTIONSHAREDASYNC(3, 32, 31)
-				//CONVOLUTIONSHAREDASYNC(5, 32, 30)
-				//CONVOLUTIONSHAREDASYNC(7, 32, 29)
-				//CONVOLUTIONSHAREDASYNC(9, 32, 28)
-				//CONVOLUTIONSHAREDASYNC(11, 32, 27)
-				//CONVOLUTIONSHAREDASYNC(13, 32, 26)
-				//CONVOLUTIONSHAREDASYNC(15, 32, 25)
+			{					
+				CONVOLUTIONSHAREDASYNC(1, 32, 32)
+				CONVOLUTIONSHAREDASYNC(3, 32, 31)
+				CONVOLUTIONSHAREDASYNC(5, 32, 30)
+				CONVOLUTIONSHAREDASYNC(7, 32, 29)
+				CONVOLUTIONSHAREDASYNC(9, 32, 28)
+				CONVOLUTIONSHAREDASYNC(11, 32, 27)
+				CONVOLUTIONSHAREDASYNC(13, 32, 26)
+				CONVOLUTIONSHAREDASYNC(15, 32, 25)
 				
 			
 			default:
 				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
 				break;
 			}
-			shared_ptr<T> resultCPU = makeArray<T>(image.getNumPixels());
-			checkCudaErrors(cudaHostRegister(resultCPU.get(), image.getNumPixels() * sizeof(T), cudaHostRegisterPortable));
-			checkCudaErrors(cudaMemcpy2D(resultCPU.get(), image.getNumCols() * sizeof(T), deviceGrayImageOut, outputPitch, image.getNumCols() * sizeof(T), image.getNumRows(), cudaMemcpyDeviceToHost));
+			shared_ptr<float> resultCPU = makeArray<float>(image.getNumPixels());
+			checkCudaErrors(cudaHostRegister(resultCPU.get(), image.getNumPixels() * sizeof(float), cudaHostRegisterPortable));
+			checkCudaErrors(cudaMemcpy2D(resultCPU.get(), image.getNumCols() * sizeof(float), deviceGrayImageOut, outputPitch, image.getNumCols() * sizeof(float), image.getNumRows(), cudaMemcpyDeviceToHost));
 			checkCudaErrors(cudaHostUnregister(resultCPU.get()));
 			results.push_back(resultCPU);
 		}
