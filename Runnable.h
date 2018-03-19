@@ -13,7 +13,6 @@ namespace processing
 {
 	class ImageFactory;
 
-	template<typename T>
 	class Runnable
 	{
 	public:
@@ -21,9 +20,9 @@ namespace processing
 		Runnable()
 		{}
 
-		DELETECOPYASSINGMENT(Runnable<T>)
+		DELETECOPYASSINGMENT(Runnable)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter<T>>>& filters, vector<shared_ptr<T>>& results) = 0;
+		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results) = 0;
 
 		virtual string getDescription() = 0;
 
