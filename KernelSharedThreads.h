@@ -10,7 +10,6 @@ using namespace std;
 namespace processing
 {
 
-
 	class KernelSharedThreads : public Runnable
 	{
 
@@ -24,7 +23,7 @@ namespace processing
 
 		virtual string getDescription() override
 		{
-			return "GPU shared memmory for small";
+			return "GPU shared memmory threads";
 		}
 
 	private:
@@ -44,6 +43,27 @@ namespace processing
 		}
 
 		cudaStream_t stream_;
+
+	};
+
+	struct Job {
+
+		shared_ptr<float> filters_;
+		int filterCount_;
+		int filterWidth_;
+		bool returnInputImage_ = false;
+		bool finish_ = false;
+		float* inputImage_;
+		int numRows;
+		int numCols;
+
+	};
+
+	struct FilterBox
+	{
+		shared_ptr<float> memory_;
+		int filterCount_;
+		int filterWidth_;
 
 	};
 
