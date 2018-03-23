@@ -50,6 +50,7 @@ namespace processing
 
 		shared_ptr<float> filters_;
 		int filterCount_;
+		int bufferStart_;
 		int filterWidth_;
 		bool returnInputImage_ = false;
 		bool finish_ = false;

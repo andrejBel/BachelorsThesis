@@ -17,6 +17,8 @@
 #include <memory>
 #include <vector>
 #include "Filter.h"
+#include <mutex>
+#include <condition_variable>
 
 using namespace std;
 using namespace cv;
@@ -25,14 +27,92 @@ using namespace cv;
 
 namespace processing 
 {
-	static const uint MAX_IMAGE_WIDTH = 4200;
-	static const uint MAX_IMAGE_HEIGHT = 4200;
-	static const size_t MAX_IMAGE_RESOLUTION = MAX_IMAGE_WIDTH*MAX_IMAGE_HEIGHT;
-	static const uint PINNED_MEMORY_BUFFER_SIZE_INPUT = 5;
-	static const uint PINNED_MEMORY_BUFFER_SIZE_OUTPUT = 20;
-	static const uint PITCHED_MEMORY_BUFFER_SIZE_INPUT = 2;
-	static const uint PITCHED_MEMORY_BUFFER_SIZE_OUTPUT = 10;
 
+	template <typename int N>
+	struct Box
+	{
+		CPUGPU Box() {}
+
+		CPUGPU Box(Box& other) {
+			for (int i = 0; i < N; i++)
+			{
+				this->memory_[i] = other.memory_[i];
+			}
+		}
+
+		float * memory_[N];
+
+	};
+
+	template <typename int N>
+	struct QueueBuffer
+	{
+	public:
+
+		void printBuf(int index, int howMuch)
+		{
+			for (int i = 0; i < howMuch; i++)
+			{
+				cout << i << ": " << memory_[(index + i) % N] << endl;
+			}
+		}
+
+		// return index of beginning 
+		int acquire(int requirement = 1)
+		{
+			if (requirement > N) {
+				throw std::runtime_error("Requirment bigger than buffer");
+			}
+			unique_lock<mutex> lock(mutex_);
+			while (requirement > (N - used_))
+			{
+				conditionVariable_.wait(lock);
+			}
+			int index = (start_ + used_) % N;
+			used_ += requirement;
+			return index;
+		}
+
+		//size of returned source
+		void release(int inReturn)
+		{
+			unique_lock<mutex> lock(mutex_);
+			if (inReturn > used_)
+			{
+				throw std::runtime_error("Requirment bigger than buffer");
+			}
+			start_ += inReturn;
+			start_ %= N;
+			used_ -= inReturn;
+			lock.unlock();
+			conditionVariable_.notify_one();
+		}
+
+		mutex mutex_;
+		condition_variable conditionVariable_;
+
+		int start_ = 0;
+		int used_ = 0;
+		float * memory_[N];
+
+	};
+
+	static const uint MAX_IMAGE_WIDTH = 2000;
+	static const uint MAX_IMAGE_HEIGHT = 2000;
+	static const size_t MAX_IMAGE_RESOLUTION = MAX_IMAGE_WIDTH*MAX_IMAGE_HEIGHT;
+	static const int PINNED_MEMORY_BUFFER_SIZE_INPUT = 5;
+	static const int PINNED_MEMORY_BUFFER_SIZE_OUTPUT = 40;
+	static const int PITCHED_MEMORY_BUFFER_SIZE_INPUT = 2;
+	static const int PITCHED_MEMORY_BUFFER_SIZE_OUTPUT = 10;
+
+	const int MAXFILTERWIDTH = 15;
+	static __constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH * PITCHED_MEMORY_BUFFER_SIZE_OUTPUT];
+	static __constant__ Box<PITCHED_MEMORY_BUFFER_SIZE_OUTPUT> PITCHED_MEMORY_BUFFER_DEVICE; 
+	static __device__ __constant__ size_t INPUT_PITCH_DEVICE[1];
+	static __device__ __constant__ size_t OUTPUT_PITCH_DEVICE[1];
+
+	static QueueBuffer<PITCHED_MEMORY_BUFFER_SIZE_OUTPUT> PITCHED_MEMORY_BUFFER_HOST;
+	
 
 	class Runnable;
 
@@ -158,30 +238,32 @@ namespace processing
 		return memory;
 	}
 
-	const int MAXFILTERWIDTH = 15;
-	static __constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH];
-
-
 	template <typename T = void>
-	__device__ void printFromKernel(const char *description, int what)
+	__host__  __device__ void printFromKernel(const char *description, int what)
 	{
 		printf("%s: %d \n", description, what);
 	}
 
 	template <typename T = void>
-	__device__ void printFromKernel(const char *description, double what)
+	__host__  __device__ void printFromKernel(const char *description, double what)
 	{
 		printf("%s: %f \n", description, what);
 	}
 
 	template <typename T = void>
-	__device__ void printFromKernel(const char *description, float what)
+	__host__  __device__ void printFromKernel(const char *description, float what)
 	{
 		printf("%s: %f \n", description, what);
 	}
 
 	template <typename T = void>
-	__device__ void printFromKernel(const char *description, uint what)
+	__host__ __device__ void printFromKernel(const char *description, float* what)
+	{
+		printf("%s: %p \n", description, what);
+	}
+
+	template <typename T = void>
+	__host__  __device__ void printFromKernel(const char *description, uint what)
 	{
 		printf("%s: %d \n", description, what);
 	}
