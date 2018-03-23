@@ -12,7 +12,7 @@ namespace processing
 {
 	MemoryPoolPinned::~MemoryPoolPinned()
 	{
-		lock_guard<mutex> lock(mutex_);
+		//lock_guard<mutex> lock(mutex_);
 		while (buffer_.size())
 		{
 			checkCudaErrors(cudaFreeHost(buffer_.top()));
@@ -21,11 +21,11 @@ namespace processing
 	}
 	shared_ptr<float> MemoryPoolPinned::acquireMemory()
 	{
-		unique_lock<mutex> lock(mutex_);
-		while (buffer_.empty())
-		{
-			conditionVariable_.wait(lock);
-		}
+		//unique_lock<mutex> lock(mutex_);
+		//while (buffer_.empty())
+		//{
+			//conditionVariable_.wait(lock);
+		//}
 		float* out = buffer_.top();
 		buffer_.pop();
 		return shared_ptr<float>(out, [this](float * ptr) { this->releaseMemory(ptr); });
@@ -33,10 +33,10 @@ namespace processing
 
 	void MemoryPoolPinned::releaseMemory(float* memory)
 	{
-		mutex_.lock();
+		//mutex_.lock();
 		buffer_.push(memory);
-		mutex_.unlock();
-		conditionVariable_.notify_one();
+		//mutex_.unlock();
+		//conditionVariable_.notify_one();
 	}
 
 	MemoryPoolPinned & MemoryPoolPinned::getMemoryPoolPinnedForOutput()
