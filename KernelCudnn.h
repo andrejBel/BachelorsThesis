@@ -1,0 +1,38 @@
+#pragma once
+#include "Runnable.h"
+#include <vector>
+#include "processing.h"
+#include "Filter.h"
+#include <memory>
+#include <string>
+
+using namespace std;
+namespace processing
+{
+
+
+	class KernelCudnn : public Runnable
+	{
+
+	public:
+
+		KernelCudnn();
+
+		DELETECOPYASSINGMENT(KernelCudnn)
+
+			virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)  override;
+
+		virtual string getDescription() override
+		{
+			return "GPU Cudnn";
+		}
+
+	private:
+
+	};
+
+
+}
+
+
+
