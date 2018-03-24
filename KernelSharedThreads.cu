@@ -365,14 +365,15 @@ namespace processing
 				jobs.pop();
 				switch (job.filterWidth_)
 				{
-					//CONVOLUTIONSHAREDTHREADSSMALL(1, 32, 16, 32, 16)
-					//CONVOLUTIONSHAREDTHREADSSMALL(3, 32, 16, 31, 15)
+					CONVOLUTIONSHAREDTHREADSSMALL(1, 32, 16, 32, 16)
+					CONVOLUTIONSHAREDTHREADSSMALL(3, 32, 16, 31, 15)
 					CONVOLUTIONSHAREDTHREADSSMALL(5, 32, 16, 30, 14)
-					//CONVOLUTIONSHAREDTHREADSSMALL(7, 32, 32, 29, 29)
-					//CONVOLUTIONSHAREDTHREADSSMALL(9, 32, 32, 28, 28)
-					//CONVOLUTIONSHAREDTHREADSSMALL(11, 32, 32, 27, 27)
-					//CONVOLUTIONSHAREDTHREADSSMALL(13, 32, 32, 26, 26)
+					CONVOLUTIONSHAREDTHREADSSMALL(7, 32, 32, 29, 29)
+					CONVOLUTIONSHAREDTHREADSSMALL(9, 32, 32, 28, 28)
+					CONVOLUTIONSHAREDTHREADSSMALL(11, 32, 32, 27, 27)
+					CONVOLUTIONSHAREDTHREADSBIG(13, 32, 18, 28, 14)
 					CONVOLUTIONSHAREDTHREADSBIG(15, 32, 18, 27, 13)
+					CONVOLUTIONSHAREDTHREADSBIG(17, 32, 16, 26, 10)
 				default:
 					std::cerr << "Filter with width: " << job.filterWidth_ << " not supported!" << endl;
 					break;
@@ -425,9 +426,9 @@ namespace processing
 					shared_ptr<float> resultCPU = MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory();
 					checkCudaErrors(cudaMemcpy2DAsync(resultCPU.get(), xlen * sizeof(float), PITCHED_MEMORY_BUFFER_HOST.memory_[(job.bufferStart_ + i) % PITCHED_MEMORY_BUFFER_SIZE_OUTPUT], pitchOutput_, xlen * sizeof(float), ylen, cudaMemcpyDeviceToHost, stream.stream_));
 					checkCudaErrors(cudaStreamSynchronize(stream.stream_));
+					PITCHED_MEMORY_BUFFER_HOST.release(1);
 					results.push_back(resultCPU);
 				}
-				PITCHED_MEMORY_BUFFER_HOST.release(job.filterCount_);
 				if (job.finish_)
 				{
 					end = true;
@@ -450,7 +451,7 @@ namespace processing
 
 		vector<shared_ptr<ImageFactory>> images;
 		images.push_back(shared_ptr<ImageFactory>(&image, [](ImageFactory * ptr) {}));
-		images.push_back(shared_ptr<ImageFactory>(&image, [](ImageFactory * ptr) {}));
+		
 		thread threadPreprocessing(preprocess, std::ref(streams[0]), std::ref(images), std::ref(filters));
 		thread threadProcessing(process, std::ref(streams[1]));
 		thread threadPostprocessing(postprocess, std::ref(streams[2]), std::ref(results));
