@@ -18,7 +18,9 @@
 
 #include <thread>
 #include <algorithm>
-#include <type_traits>
+
+#include "GpuTimer.h"
+
 
 using namespace std;
 
@@ -35,7 +37,11 @@ case FILTER_W:\
 	static_assert(BLOCK_SIZE - TILE_SIZE >= (FILTER_WIDTH - 1), "Wrong block and tile size, BLOCKSIZE - TILESIZE >= (FILTERWIDTH - 1)");\
 	const dim3 blockSize(BLOCK_SIZE, BLOCK_SIZE);\
 	const dim3 gridSize((image.getNumCols() + TILE_SIZE - 1) / TILE_SIZE, (image.getNumRows() + TILE_SIZE - 1) / TILE_SIZE, 1);\
+	timer.start(); \
 	convolutionGPUShared<FILTER_WIDTH, BLOCK_SIZE, TILE_SIZE> << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get());\
+	timer.stop(); \
+	cout << "FilterWidth: " << FILTER_W << ", time: " << timer.getElapsedTime() << endl; \
+	cout << "Bandwidth: " << (( ((gridSize.x * blockSize.x * gridSize.y * blockSize.y )  * sizeof(float) *(FILTER_W * FILTER_W + 1 + 1))  / ((timer.getElapsedTime()) * 1000000))) << " GB/s" << endl; \
 	break;\
 }
 
@@ -95,17 +101,17 @@ namespace processing
 		int2 sharedPosition;
 		sharedPosition.x = absoluteImagePosition.x - (FILTER_WIDTH / 2);
 		sharedPosition.y = absoluteImagePosition.y - (FILTER_WIDTH / 2);
-		__shared__ float filterShared[FILTER_WIDTH][FILTER_WIDTH];
+		//__shared__ float filterShared[FILTER_WIDTH][FILTER_WIDTH];
 		__shared__ float shared[BLOCK_SIZE][BLOCK_SIZE];
 		int threadX = threadIdx.x;
 		int threadY = threadIdx.y;
 		sharedPosition.x = min(max(sharedPosition.x, 0), numCols - 1);
 		sharedPosition.y = min(max(sharedPosition.y, 0), numRows - 1);
 		shared[threadY][threadX] = inputImage[IMAD(sharedPosition.y, numCols, sharedPosition.x)];
-		if (threadX < FILTER_WIDTH && threadY < FILTER_WIDTH) 
-		{
-			filterShared[threadY][threadX] = filter[IMAD(threadY, FILTER_WIDTH, threadX)];
-		}
+		//if (threadX < FILTER_WIDTH && threadY < FILTER_WIDTH) 
+		//{
+			//filterShared[threadY][threadX] = filter[IMAD(threadY, FILTER_WIDTH, threadX)];
+		//}
 		__syncthreads();
 		if (threadX < TILE_SIZE && threadY < TILE_SIZE && absoluteImagePosition.x < numCols && absoluteImagePosition.y <  numRows)
 		{
@@ -117,7 +123,7 @@ namespace processing
 #pragma unroll FILTER_WIDTH
 				for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
 				{
-					result += filterShared[yOffset][xOffset] * shared[yOffset + threadY][xOffset + threadX];
+					result += filter[yOffset * FILTER_WIDTH +  xOffset] * shared[yOffset + threadY][xOffset + threadX];
 				}
 			}
 			
@@ -141,10 +147,10 @@ namespace processing
 	{}
 
 	
-	void KernelSharedMemory::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelSharedMemory::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
+		GpuTimer timer;
 		shared_ptr<float> deviceFilters = makeDeviceFilters(filters);
-		
 		// filter allocation and initialization
 		shared_ptr<float> deviceGrayImageOut = allocateMemmoryDevice<float>(image.getNumPixels());
 		const float* hostGrayImage = image.getInputGrayPointerFloat();
