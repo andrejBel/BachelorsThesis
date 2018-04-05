@@ -349,3 +349,4 @@ vectorAdd_vs2015.vcxproj.filters
 blurredImage.jpg
 resize_1_4th_Cuda.jpg
 input_img2.jpg
+*.jpg
