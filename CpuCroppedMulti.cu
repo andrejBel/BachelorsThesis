@@ -12,8 +12,7 @@
 #define ACCEPTFILTER(FILTERWIDTH)\
 case FILTERWIDTH:\
 {\
-    Filter<FILTERWIDTH> * ptr = (Filter<FILTERWIDTH> *) (filter.get());\
-	convolution(*image.get(), ptr, partialResults[i].get()); \
+	convolution<FILTERWIDTH>(*image.get(), filter->getFilter(), partialResults[i].get()); \
 	break;\
 }
 
@@ -25,12 +24,12 @@ namespace processing
 	}
 
 
-	void CpuCroppedMulti::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
+	void CpuCroppedMulti::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
 		throw std::runtime_error("Simple convolution not supported");
 	}
 
-	void CpuCroppedMulti::run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<AbstractFilter>>>& filters, vector<shared_ptr<float>>& results)
+	void CpuCroppedMulti::run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results)
 	{
 		pair<bool, string> check = controlInputForMultiConvolution(images, filters);
 		if (check.first == false)
@@ -58,7 +57,7 @@ namespace processing
 			for (size_t i = 0; i < imageSize; i++)
 			{
 				shared_ptr<ImageFactory> image = images[i];
-				shared_ptr<AbstractFilter> filter = filterGroup[i];
+				shared_ptr<Filter> filter = filterGroup[i];
 				switch (filterWidth)
 				{
 					ACCEPTFILTER(1)

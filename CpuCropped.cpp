@@ -10,9 +10,8 @@
 #define ACCEPTFILTER(FILTERWIDTH)\
 case FILTERWIDTH:\
 {\
-	Filter<FILTERWIDTH> * ptr = (Filter<FILTERWIDTH> *) (filter.get());\
 	result = makeArray<float>((image.getNumCols() - (FILTERWIDTH - 1)) * (image.getNumRows() - (FILTERWIDTH - 1)));\
-	convolution(image, ptr, result.get());\
+	convolution<FILTERWIDTH>(image, filter->getFilter(), result.get());\
 	break;\
 }
 
@@ -24,7 +23,7 @@ namespace processing
 	}
 
 
-	void CpuCropped::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
+	void CpuCropped::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
 		for (auto& filter : filters)
 		{

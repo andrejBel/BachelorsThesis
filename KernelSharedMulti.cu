@@ -42,22 +42,6 @@ namespace processing
 					}
 
 
-	template<typename T = void>
-	__global__ void setZeros(float * source, int numRows, int numCols, int pitchSize)
-	{
-		int2 absoluteImagePosition;
-		absoluteImagePosition.x = blockIdx.x * blockDim.x + threadIdx.x;
-		absoluteImagePosition.y = blockIdx.y * blockDim.y + threadIdx.y;
-		//if (absoluteImagePosition.x >= numCols || absoluteImagePosition.y >= numRows)
-		//{
-			//return;
-		//}
-		 
-		source[absoluteImagePosition.y * pitchSize + absoluteImagePosition.x] = 0.0;
-		
-	}
-
-
 	template<typename int FILTER_WIDTH, typename int BLOCK_SIZE_X, typename int BLOCK_SIZE_Y, typename int TILE_SIZE_X, typename int TILE_SIZE_Y>
 	__global__ void convolutionGPUSharedMultiSmall(const int numRows, const int numCols, const float * __restrict__ inputImage, float * __restrict__  outputImage, int inputPitch, int outputPitch, const short filterIndex)
 	{
@@ -150,12 +134,12 @@ namespace processing
 	{
 	}
 
-	void KernelSharedMulti::run(ImageFactory & image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelSharedMulti::run(ImageFactory & image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
 		throw std::runtime_error("Simple convolution not supported");
 	}
 
-	void KernelSharedMulti::run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<AbstractFilter>>>& filters, vector<shared_ptr<float>>& results)
+	void KernelSharedMulti::run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results)
 	{
 		const short MAX_SMALL_TILE_DIMENION_X = 2;
 		const short MAX_SMALL_TILE_DIMENION_Y = 2;
@@ -204,7 +188,7 @@ namespace processing
 				
 				//setZeros << <gridSizeZeros, blockSizeZeros >> > (deviceGrayImageOut, numRows, numCols, pitchOutput / sizeof(float));
 
-				vector<shared_ptr<AbstractFilter>>& groupFilters = filters[j];
+				vector<shared_ptr<Filter>>& groupFilters = filters[j];
 				int filterWidth = groupFilters[0]->getWidth();
 				int sizeOfFilter = filterWidth* filterWidth;
 				shared_ptr<float> memoryForFilters = shared_ptr<float>(new float[sizeOfFilter * usedImages], [](float * ptr) { delete[] ptr; });

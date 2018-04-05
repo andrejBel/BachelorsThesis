@@ -31,7 +31,7 @@ using namespace std;
 #define CONVOLUTIONSHAREDSMALL(FILTERWIDTH, BLOCKSIZEX, BLOCKSIZEY, TILESIZEX, TILESIZEY) \
 			case FILTERWIDTH:\
 			{\
-				checkCudaErrors(cudaMemcpyToSymbol(FILTERCUDA, ((Filter<FILTERWIDTH> *) filter.get())->getFilter(), sizeof(float) * FILTERWIDTH * FILTERWIDTH));\
+				checkCudaErrors(cudaMemcpyToSymbol(FILTERCUDA, filter->getFilter(), sizeof(float) * FILTERWIDTH * FILTERWIDTH));\
 				const int FILTER_WIDTH = FILTERWIDTH;\
 				const int BLOCK_SIZE_X = BLOCKSIZEX;\
 				const int BLOCK_SIZE_Y = BLOCKSIZEY;\
@@ -120,11 +120,7 @@ namespace processing
 #pragma unroll smallTile 
 			for (int k = 0; k < smallTile; k++)
 			{
-#pragma unroll smallTile
-				for (int l = 0; l < smallTile; l++)
-				{
-					outputImage[IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x) + l] = results[k][l];
-				}
+				*(float3 *)(outputImage + IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x)) = *(float3 *)(&results[k]);
 			}
 		}
 	}
@@ -138,6 +134,7 @@ namespace processing
 	{
 		const int smallTile = 2;
 		__shared__ float shared[BLOCK_SIZE_Y * smallTile][BLOCK_SIZE_X * smallTile];
+
 		const int threadX = threadIdx.x * smallTile;
 		const int threadY = threadIdx.y * smallTile;
 		int2 absoluteImagePosition;
@@ -153,10 +150,12 @@ namespace processing
 
 		if (threadX < TILE_SIZE_X * smallTile && threadY < TILE_SIZE_Y * smallTile)
 		{
-			float result1 = 0.0; //00
-			float result2 = 0.0; //01
-			float result3 = 0.0; //10
-			float result4 = 0.0; //11
+			float2 result1;
+			float2 result2;
+			result1.x = 0.0;
+			result1.y = 0.0;
+			result2.x = 0.0;
+			result2.y = 0.0;
 			float filterValue = 0.0;
 #pragma unroll FILTER_WIDTH
 				for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
@@ -165,16 +164,14 @@ namespace processing
 					for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
 					{
 						filterValue = FILTERCUDA[yOffset*FILTER_WIDTH + xOffset];
-						result1 += filterValue * shared[yOffset + threadY][xOffset + threadX];
-						result2 += filterValue * shared[yOffset + threadY][xOffset + threadX + 1];
-						result3 += filterValue * shared[yOffset + threadY + 1][xOffset + threadX];
-						result4 += filterValue * shared[yOffset + threadY + 1][xOffset + threadX + 1];
+						result1.x += filterValue * shared[yOffset + threadY][xOffset + threadX];
+						result1.y += filterValue * shared[yOffset + threadY][xOffset + threadX + 1];
+						result2.x += filterValue * shared[yOffset + threadY + 1][xOffset + threadX];
+						result2.y += filterValue * shared[yOffset + threadY + 1][xOffset + threadX + 1];
 					}
 				}
-				outputImage[IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x)] = result1;
-				outputImage[IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x + 1)] = result2;
-				outputImage[IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x)] = result3;
-				outputImage[IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x + 1)] = result4;
+				*(float2 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x)) = result1;
+				*(float2 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x)) = result2;
 		}
 	}
 	
@@ -346,7 +343,7 @@ __global__ void convolutionGPUSharedSmall(const int numRows, const int numCols, 
 	{}
 
 
-	void KernelSharedForSmall::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelSharedForSmall::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
 		const short MAX_BLOCK_SIZE_X = 64;
 		const short MAX_BLOCK_SIZE_Y = 64;

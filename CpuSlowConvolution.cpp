@@ -9,8 +9,7 @@
 #define ACCEPTFILTER(FILTERWIDTH)\
 case FILTERWIDTH:\
 {\
-	Filter<FILTERWIDTH> * ptr = (Filter<FILTERWIDTH> *) (filter.get());\
-	convolution(image, ptr, result.get());\
+	convolution<FILTERWIDTH>(image, filter->getFilter(), result.get());\
 	break;\
 }
 
@@ -21,7 +20,7 @@ namespace processing
 	{
 	}
 
-	void CpuSlowConvolution::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
+	void CpuSlowConvolution::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
 		for (auto& filter : filters)
 		{

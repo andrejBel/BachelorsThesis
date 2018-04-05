@@ -6,13 +6,13 @@
 #include <iostream>
 #include <algorithm>
 #include "opencv2/core/utility.hpp"
-#include "Filter.h"
 #include "Runnable.h"
 #include "Test.h"
 
 
 namespace processing {
 
+	class Filter;
 	class TestMultiBuilder;
 	class TestMulti
 	{
@@ -25,7 +25,7 @@ namespace processing {
 		static void testAgainstEachOther(shared_ptr<Runnable> runnable1, shared_ptr<Runnable> runnable2, uint replications = 1);
 
 	private:
-		vector<vector<shared_ptr<AbstractFilter>>> filters_;
+		vector<vector<shared_ptr<Filter>>> filters_;
 		vector<shared_ptr<Runnable>> runnables_;
 		uint replications_;
 		vector<string> fileNames_;
@@ -40,9 +40,9 @@ namespace processing {
 		TestMulti test_;
 
 	public:
-		TestMultiBuilder& addFilterGroup(vector<shared_ptr<AbstractFilter>> filterGroup);
+		TestMultiBuilder& addFilterGroup(vector<shared_ptr<Filter>> filterGroup);
 
-		TestMultiBuilder& setFilterGroups(vector<vector<shared_ptr<AbstractFilter>>> filters);
+		TestMultiBuilder& setFilterGroups(vector<vector<shared_ptr<Filter>>> filters);
 
 		TestMultiBuilder& addRunnable(shared_ptr<Runnable> runnable);
 

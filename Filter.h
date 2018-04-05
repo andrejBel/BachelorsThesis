@@ -20,75 +20,67 @@
 using namespace std;
 namespace processing 
 {
-	class AbstractFilter
-	{
-	public:	
-	
-		CPUGPU AbstractFilter() {}
 
-		CPUGPUINLINE virtual int getWidth() const = 0;
-
-		CPUGPUINLINE virtual int getSize() const = 0;
-
-		CPUGPUINLINE virtual const float* getFilter() const = 0;
-
-		CPU virtual ~AbstractFilter() {};
-	};
-
-
-	template <int FILTER_WIDTH>
-	class Filter : public AbstractFilter
+	class Filter
 	{
 
 	public:
-		
-		
-		Filter(vector<float> filter, const float multiplier = 1.0f)
+	
+		Filter(const int filterWidth,const vector<float>& filter, const float multiplier = 1.0f) : 
+			Filter(filterWidth)
 		{
-			std::copy(filter.data(), filter.data() + FILTER_WIDTH*FILTER_WIDTH, filter_);
+			std::copy(filter.begin(), filter.begin() + filterWidth_*filterWidth_, filter_.begin());
 			if (multiplier != 1.0)
 			{
-				for (uint i = 0; i < FILTER_WIDTH*FILTER_WIDTH; ++i)
+				for (uint i = 0; i < filterWidth_* filterWidth_; ++i)
 				{
 					filter_[i] *= multiplier;
 				}
 			}
 		}
 
-		Filter(float * filter, const float multiplier = 1.0f)
+		Filter(const int filterWidth, float * filter, const float multiplier = 1.0f) :
+			Filter(filterWidth)
 		{
-			std::copy(filter, filter + FILTER_WIDTH*FILTER_WIDTH, filter_);
+			std::copy(filter, filter + filterWidth_ * filterWidth_, filter_.begin());
 			if (multiplier != 1.0)
 			{
-				for (uint i = 0; i < FILTER_WIDTH*FILTER_WIDTH; ++i)
+				for (uint i = 0; i < filterWidth_*filterWidth_; ++i)
 				{
 					filter_[i] *= multiplier;
 				}
 			}
 		}
 
-		CPUGPUINLINE const float* getFilter() const override
+		inline const float* getFilter() const
 		{
-			return filter_;
+			return filter_.data();
 		}
 
-		CPUGPUINLINE virtual int getWidth() const override
+		inline virtual int getWidth() const
 		{
-			return FILTER_WIDTH;
+			return filterWidth_;
 		}
 
 
-		CPUGPUINLINE virtual int getSize() const override
+		inline virtual int getSize() const
 		{
-			return FILTER_WIDTH * FILTER_WIDTH;
+			return filterWidth_ * filterWidth_;
 		}
 
-		CPU virtual ~Filter() 
-		{};
+		~Filter() 
+		{}
 		
 	private:
+		Filter(const int filterWidth) :
+			filterWidth_(filterWidth),
+			filter_(filterWidth_ * filterWidth_)
+		{}
 
-		float filter_[FILTER_WIDTH * FILTER_WIDTH];
+
+		const int filterWidth_;
+		vector<float> filter_;
+		
 
 	};
 

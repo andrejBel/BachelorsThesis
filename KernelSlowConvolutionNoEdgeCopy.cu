@@ -80,7 +80,7 @@ case FILTERWIDTH:\
 	}
 
 
-	void KernelSlowConvolutionNoEdgeCopy::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelSlowConvolutionNoEdgeCopy::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
 		shared_ptr<float> deviceFilters = makeDeviceFilters(filters);
 		// filter allocation and initialization

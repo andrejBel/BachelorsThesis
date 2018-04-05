@@ -244,7 +244,7 @@ namespace processing
 	size_t pitchInput_;
 	size_t pitchOutput_;
 
-	void preprocess(CudaStream& stream, vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<AbstractFilter>>& filters)
+	void preprocess(CudaStream& stream, vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters)
 	{
 		for (int i = 0; i < PITCHED_MEMORY_BUFFER_SIZE_OUTPUT; i++)
 		{
@@ -260,14 +260,14 @@ namespace processing
 		}
 		pitchInput_ = MemoryPoolPitched::getMemoryPoolPitchedForInput().getPitch();
 		pitchOutput_ = MemoryPoolPitched::getMemoryPoolPitchedForOutput().getPitch();
-		map<int, vector<shared_ptr<AbstractFilter>>> filterSets;
-		for (shared_ptr<AbstractFilter>& filter : filters)
+		map<int, vector<shared_ptr<Filter>>> filterSets;
+		for (shared_ptr<Filter>& filter : filters)
 		{
 			filterSets[filter->getWidth()].push_back(filter);
 		}
 		vector<FilterBox> filtersHostMemories;
 
-		for (std::pair< int, vector<shared_ptr<AbstractFilter>> > filters : filterSets)
+		for (std::pair< int, vector<shared_ptr<Filter>> > filters : filterSets)
 		{
 			int filterWidth = filters.first;
 			int filterCount = filters.second.size();
@@ -446,7 +446,7 @@ namespace processing
 	{}
 
 
-	void KernelSharedThreads::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelSharedThreads::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
 
 		vector<shared_ptr<ImageFactory>> images;

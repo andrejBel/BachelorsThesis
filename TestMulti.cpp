@@ -1,5 +1,6 @@
 #include "TestMulti.h"
 #include "processing.h"
+#include "Filter.h"
 
 namespace processing 
 {
@@ -78,8 +79,8 @@ namespace processing
 		TestMultiBuilder builder;
 		builder
 			
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get3x3Filter(),Test::get3x3Filter(),Test::get3x3Filter() }))
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get3x3Filter(),Test::get3x3Filter(),Test::get3x3Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter() }))
 			.setImagePaths(vector<string>({ INPUT_IMAGE_PATH , INPUT_IMAGE_PATH , INPUT_IMAGE_PATH }))
 			.addRunnable(runnable)
 			.setReplications(replications);
@@ -90,14 +91,14 @@ namespace processing
 	{
 		TestMultiBuilder builder;
 		builder
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter() }))
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get3x3Filter(),Test::get3x3Filter(),Test::get3x3Filter() }))
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get7x7Filter(),Test::get7x7Filter(),Test::get7x7Filter() }))
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get9x9Filter(),Test::get9x9Filter(),Test::get9x9Filter() }))
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get11x11Filter(),Test::get11x11Filter(),Test::get11x11Filter() }))
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get13x13Filter(),Test::get13x13Filter(),Test::get13x13Filter() }))
-			.addFilterGroup(vector<shared_ptr<AbstractFilter>>({ Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get3x3Filter(),Test::get3x3Filter(),Test::get3x3Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get7x7Filter(),Test::get7x7Filter(),Test::get7x7Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get9x9Filter(),Test::get9x9Filter(),Test::get9x9Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get11x11Filter(),Test::get11x11Filter(),Test::get11x11Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get13x13Filter(),Test::get13x13Filter(),Test::get13x13Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter() }))
 			.setImagePaths(vector<string>({ INPUT_IMAGE_PATH , INPUT_IMAGE_PATH , INPUT_IMAGE_PATH }))
 			.addRunnable(runnable1)
 			.addRunnable(runnable2)
@@ -105,13 +106,13 @@ namespace processing
 		builder.build().testCropped();
 	}
 
-	TestMultiBuilder & TestMultiBuilder::addFilterGroup(vector<shared_ptr<AbstractFilter>> filterGroup)
+	TestMultiBuilder & TestMultiBuilder::addFilterGroup(vector<shared_ptr<Filter>> filterGroup)
 	{
 		test_.filters_.push_back(filterGroup);
 		return *this;
 	}
 
-	TestMultiBuilder & TestMultiBuilder::setFilterGroups(vector<vector<shared_ptr<AbstractFilter>>> filters)
+	TestMultiBuilder & TestMultiBuilder::setFilterGroups(vector<vector<shared_ptr<Filter>>> filters)
 	{
 		test_.filters_ = filters;
 		return *this;

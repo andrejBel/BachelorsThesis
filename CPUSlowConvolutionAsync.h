@@ -21,7 +21,7 @@ namespace processing
 
 		DELETECOPYASSINGMENT(CPUSlowConvolutionAsync)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results) override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{
@@ -29,7 +29,7 @@ namespace processing
 		}
 
 		template <typename int FILTER_WIDTH>
-		void divideAndConquer(size_t leftBorder, size_t rightBorder, int numCols, int numRows, Filter<FILTER_WIDTH>* filter, const float* inputImage, float* outputImage);
+		void divideAndConquer(size_t leftBorder, size_t rightBorder, int numCols, int numRows, const float* filter, const float* inputImage, float* outputImage);
 
 	private:
 		ThreadPool threadPool_;
@@ -39,7 +39,7 @@ namespace processing
 		__host__ __forceinline__ int max(int a, int b);
 
 		template <typename int FILTER_WIDTH>
-		void convolution(ImageFactory& image, Filter<FILTER_WIDTH> * filter, float* outputImage);
+		void convolution(ImageFactory& image, const float* filter, float* outputImage);
 
 		static const unsigned int NUMBER_OF_THREADS = 4;
 
@@ -47,7 +47,7 @@ namespace processing
 
 
 	template<typename int FILTER_WIDTH>
-	inline void CPUSlowConvolutionAsync::convolution(ImageFactory & image, Filter<FILTER_WIDTH>* filter, float * outputImage)
+	inline void CPUSlowConvolutionAsync::convolution(ImageFactory & image, const float* filter, float * outputImage)
 	{
 		auto columns = image.getNumCols();
 		auto rows = image.getNumRows();
@@ -62,7 +62,7 @@ namespace processing
 		{
 			threadPool_.addTask([this,leftBorder, rightBorder,columns, rows, filter, inputImage, outputImage]() 
 			{
-				this->divideAndConquer(leftBorder, rightBorder, columns, rows, filter, inputImage, outputImage);
+				this->divideAndConquer<FILTER_WIDTH>(leftBorder, rightBorder, columns, rows, filter, inputImage, outputImage);
 			});
 			leftBorder = rightBorder;
 			rightBorder = std::min(rightBorder + size_t(difference), size_t(pixels));
@@ -71,10 +71,9 @@ namespace processing
 	}
 
 	template<typename int FILTER_WIDTH>
-	inline void CPUSlowConvolutionAsync::divideAndConquer(size_t leftBorder, size_t rightBorder, int numCols, int numRows, Filter<FILTER_WIDTH>* filter, const float* inputImage, float* outputImage)
+	inline void CPUSlowConvolutionAsync::divideAndConquer(size_t leftBorder, size_t rightBorder, int numCols, int numRows, const float* filter, const float* inputImage, float* outputImage)
 	{
 		int2 pointPosition;
-		auto filterV = filter->getFilter();
 		float result(0.0);
 		int column; //x
 		int row; //y
@@ -91,7 +90,7 @@ namespace processing
 					pointPosition.y = row + y - (FILTER_WIDTH / 2);
 					pointPosition.x = min(max(pointPosition.x, 0), numCols - 1);
 					pointPosition.y = min(max(pointPosition.y, 0), numRows - 1);
-					result += filterV[y * FILTER_WIDTH + x] * inputImage[pointPosition.y * numCols + pointPosition.x];
+					result += filter[y * FILTER_WIDTH + x] * inputImage[pointPosition.y * numCols + pointPosition.x];
 				}
 			}
 			outputImage[index1D] = result;

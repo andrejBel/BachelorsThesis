@@ -20,7 +20,7 @@ namespace processing
 
 		DELETECOPYASSINGMENT(CpuCropped)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results) override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{
@@ -35,7 +35,7 @@ namespace processing
 		__host__ __forceinline__ int max(int a, int b);
 
 		template <typename int FILTER_WIDTH>
-		void convolution(ImageFactory& image, Filter<FILTER_WIDTH> * filter, float* outputImage);
+		void convolution(ImageFactory& image,const float * filter, float* outputImage);
 
 	};
 
@@ -43,13 +43,12 @@ namespace processing
 
 	
 	template<typename int FILTER_WIDTH>
-	inline void CpuCropped::convolution(ImageFactory & image, Filter<FILTER_WIDTH>* filter, float * outputImage)
+	inline void CpuCropped::convolution(ImageFactory & image, const float* filter, float * outputImage)
 	{
 		auto columns = image.getNumCols();
 		auto rows = image.getNumRows();
 		const float * inputImage = image.getInputGrayPointerFloat();
 		int2 pointPosition;
-		auto filterV = filter->getFilter();
 		float result(0.0);
 		for (int row = (FILTER_WIDTH / 2); row < rows - (FILTER_WIDTH / 2); ++row)
 		{
@@ -62,7 +61,7 @@ namespace processing
 					{
 						pointPosition.x = column + x - (FILTER_WIDTH / 2);
 						pointPosition.y = row + y - (FILTER_WIDTH / 2);
-						result += filterV[y * FILTER_WIDTH + x] * inputImage[pointPosition.y * columns + pointPosition.x];
+						result += filter[y * FILTER_WIDTH + x] * inputImage[pointPosition.y * columns + pointPosition.x];
 					}
 				}
 				outputImage[(row - (FILTER_WIDTH / 2) ) * (columns - (FILTER_WIDTH - 1)) + (column - (FILTER_WIDTH / 2))] = result;

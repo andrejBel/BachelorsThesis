@@ -2,7 +2,6 @@
 #include "Filter.h"
 #include "processing.h"
 #include <memory>
-#include "processing.h"
 #include "KernelSharedMemory.h"
 #include "KernelSlowConvolution.h"
 #include "KernelSlowConvolutionNoEdgeCopy.h"
@@ -12,6 +11,7 @@
 #include "KernelSharedMemoryAsync.h"
 #include "KernelNaive.h"
 #include "CpuCropped.h"
+#include "ImageFactory.h"
 
 namespace processing 
 {
@@ -36,7 +36,7 @@ namespace processing
 				meter.start();
 				runnable->run(image, filters_, results[results.size() - 1]);
 				meter.stop();
-				time += meter.getTimeMilli();
+				time += meter.getTimeMicro();
 			}
 
 			cout << runnable->getDescription() << ". Replications:  " << replications_ << ". Average time: " << (time / replications_) << endl;
@@ -172,10 +172,10 @@ namespace processing
 			.addFilter(Test::get1x1Filter())
 			.addFilter(Test::get3x3Filter())
 			.addFilter(Test::get5x5Filter())
-			.addFilter(Test::get7x7Filter())
-			.addFilter(Test::get9x9Filter())
-			.addFilter(Test::get11x11Filter())
-			.addFilter(Test::get13x13Filter())
+			//.addFilter(Test::get7x7Filter())
+			//.addFilter(Test::get9x9Filter())
+			//.addFilter(Test::get11x11Filter())
+			//.addFilter(Test::get13x13Filter())
 			.addFilter(Test::get15x15Filter())
 			.addRunnable(runnable).setReplications(replications);
 		builder.build()();
@@ -194,14 +194,14 @@ namespace processing
 	{
 		TestBuilder builder;
 		builder
-			//.addFilter(Test::get1x1Filter())
+			.addFilter(Test::get1x1Filter())
 			.addFilter(Test::get3x3Filter())
-			//.addFilter(Test::get5x5Filter())
-			//.addFilter(Test::get7x7Filter())
-			//.addFilter(Test::get9x9Filter())
-			//.addFilter(Test::get11x11Filter())
-			//.addFilter(Test::get13x13Filter())
-			//.addFilter(Test::get15x15Filter())
+			.addFilter(Test::get5x5Filter())
+			.addFilter(Test::get7x7Filter())
+			.addFilter(Test::get9x9Filter())
+			.addFilter(Test::get11x11Filter())
+			.addFilter(Test::get13x13Filter())
+			.addFilter(Test::get15x15Filter())
 			.addRunnable(runnable).addRunnable(make_shared<CPUSlowConvolutionAsync>()).setReplications(replications);
 		builder.build()();
 	}
@@ -252,7 +252,7 @@ namespace processing
 	void Test::testAllAgainstCpu()
 	{
 		TestBuilder builder;
-		vector<shared_ptr<AbstractFilter>> filters = { Test::get3x3Filter() , Test::get5x5Filter(), Test::get7x7Filter() };
+		vector<shared_ptr<Filter>> filters = { Test::get3x3Filter() , Test::get5x5Filter(), Test::get7x7Filter() };
 		builder.setFilters(filters);
 		{
 			vector<shared_ptr<Runnable>> runnables = { make_shared<KernelSharedMemory>(), make_shared<CpuSlowConvolution>() };
@@ -278,33 +278,37 @@ namespace processing
 	}
 
 
-	shared_ptr<AbstractFilter> Test::get1x1Filter()
+	shared_ptr<Filter> Test::get1x1Filter()
 	{
-		static shared_ptr<AbstractFilter> filter = createFilter
+		static shared_ptr<Filter> filter = createFilter
 		(1,
 		{
-			2.8f
-		}, 1.8f
-		);
-		return filter;
-	}
-
-	shared_ptr<AbstractFilter> Test::get3x3Filter()
-	{
-		static shared_ptr<AbstractFilter> filter = createFilter
-		(3,
-		{
-			-10.0f,8.4f,11.0f,
-			2.0f,4.3f,22.0f,
-			-1.0f,2.5f,12.0f
+			1.0f
 		}, 1.0f
 		);
 		return filter;
 	}
 
-	shared_ptr<AbstractFilter> Test::get5x5Filter()
+	shared_ptr<Filter> Test::get3x3Filter()
 	{
-		static shared_ptr<AbstractFilter> filter = createFilter
+		
+		static shared_ptr<Filter> filter = createFilter
+		(3,
+		{
+			1,  1, 1 ,
+			1, -8, 1 ,
+			1,  1, 1
+		}, 1.0f
+		);
+		
+		
+		return filter;
+	}
+
+	shared_ptr<Filter> Test::get5x5Filter()
+	{
+		/*
+		static shared_ptr<Filter> filter = createFilter
 		(5,
 		{
 			-1.0f,2.0f,1.0f,1.5f, 1.6f,
@@ -314,12 +318,19 @@ namespace processing
 			-1.0f,4.56f,10.02f,4.73f,3.33f
 		}, 1.7f
 		);
+		*/
+		const int size = 5*5;
+		vector<float> filterValues(size);
+
+		fill(filterValues.begin(), filterValues.end(), 1);
+		static shared_ptr<Filter> filter = createFilter(5, filterValues, 1.0 / size);
 		return filter;
 	}
 
-	shared_ptr<AbstractFilter> Test::get7x7Filter()
+	shared_ptr<Filter> Test::get7x7Filter()
 	{
-		static shared_ptr<AbstractFilter> filter = createFilter
+		/*
+		static shared_ptr<Filter> filter = createFilter
 		(7,
 		{
 			0.00000067f,0.00002292f,0.00019117f,0.00038771f,	0.00019117f,	0.00002292f,	0.00000067f,
@@ -331,12 +342,18 @@ namespace processing
 			0.00000067f,	0.00002292f,	0.00019117f,	0.00038771f,	0.00019117f,	0.00002292f,	0.00000067f
 		}, 2.0f
 		);
+		*/
+		const int size = 49;
+		vector<float> filterValues(size);
+
+		fill(filterValues.begin(), filterValues.end(), 1);
+		static shared_ptr<Filter> filter = createFilter(7,	filterValues, 1.0 / size);
 		return filter;
 	}
 
-	shared_ptr<AbstractFilter> Test::get9x9Filter()
+	shared_ptr<Filter> Test::get9x9Filter()
 	{
-		static shared_ptr<AbstractFilter> filter = createFilter
+		static shared_ptr<Filter> filter = createFilter
 		(9,
 		{
 			0.036278f,	0.089869f,	0.001261f,	0.009317f,	0.151778f,	0.107585f,	0.182440f,	0.042363f,	0.000292f,
@@ -354,9 +371,9 @@ namespace processing
 		return filter;
 	}
 
-	shared_ptr<AbstractFilter> Test::get11x11Filter()
+	shared_ptr<Filter> Test::get11x11Filter()
 	{
-		static shared_ptr<AbstractFilter> filter = createFilter
+		static shared_ptr<Filter> filter = createFilter
 		(11,
 		{
 			0.006532f,	0.110691f,	0.184945f,	0.021727f,	0.025837f,	0.033302f,	0.081124f,	0.127049f,	0.182580f,	0.217225f,	0.048565f,
@@ -375,9 +392,9 @@ namespace processing
 		return filter;
 	}
 
-	shared_ptr<AbstractFilter> Test::get13x13Filter()
+	shared_ptr<Filter> Test::get13x13Filter()
 	{
-		static shared_ptr<AbstractFilter> filter = createFilter
+		static shared_ptr<Filter> filter = createFilter
 		(13,
 		{
 			0.056964f,	0.003826f,	0.198016f,	0.024934f,	0.020462f,	0.285452f,	0.129167f,	0.050595f,	0.285314f,	0.005765f,	0.051772f,	0.024044f,	0.079132f,
@@ -398,9 +415,9 @@ namespace processing
 		return filter;
 	}
 
-	shared_ptr<AbstractFilter> Test::get15x15Filter()
+	shared_ptr<Filter> Test::get15x15Filter()
 	{
-		static shared_ptr<AbstractFilter> filter = createFilter
+		static shared_ptr<Filter> filter = createFilter
 		(15,
 		{
 			0.082687f,	0.026221f,	0.052721f,	0.077936f,	0.067556f,	0.059633f,	0.037684f,	0.029745f,	0.268608f,	0.222160f,	0.013158f,	0.002824f,	0.009861f,	0.004119f,	0.118977f,
@@ -423,13 +440,40 @@ namespace processing
 		return filter;
 	}
 
-	TestBuilder& TestBuilder::addFilter(shared_ptr<AbstractFilter> filter)
+	shared_ptr<Filter> Test::get17x17Filter()
+	{
+		static shared_ptr<Filter> filter = createFilter
+		(17,
+		{
+			0.018920f,	0.019526f,	0.188236f,	0.140399f,	0.023428f,	0.021220f,	0.052512f,	0.277044f,	0.194821f,	0.113885f,	0.032712f,	0.027583f,	0.000551f,	0.044274f,	0.029870f,	0.220000f,	0.192793f,
+			0.376275f,	0.028888f,	0.003389f,	0.002389f,	0.008323f,	0.098333f,	0.055021f,	0.018589f,	0.037381f,	0.032755f,	0.122960f,	0.348894f,	0.147169f,	0.006051f,	0.241230f,	0.018408f,	0.021367f,
+			0.007151f,	0.029703f,	0.018503f,	0.006685f,	0.136266f,	0.006367f,	0.345499f,	0.009347f,	0.052769f,	0.022361f,	0.078136f,	0.118084f,	0.008018f,	0.002625f,	0.103630f,	0.038572f,	0.346208f,
+			0.228491f,	0.043996f,	0.273250f,	0.040016f,	0.251569f,	0.008116f,	0.167108f,	0.047842f,	0.012328f,	0.026963f,	0.127105f,	0.165487f,	0.083471f,	0.011213f,	0.269236f,	0.304227f,	0.207117f,
+			0.013109f,	0.237741f,	0.003088f,	0.013648f,	0.254708f,	0.006507f,	0.147470f,	0.093969f,	0.063319f,	0.182307f,	0.021083f,	0.060441f,	0.020400f,	0.025299f,	0.115569f,	0.057143f,	0.012457f,
+			0.125274f,	0.154006f,	0.220198f,	0.014284f,	0.092863f,	0.265170f,	0.046862f,	0.234675f,	0.029934f,	0.119544f,	0.082256f,	0.056520f,	0.189394f,	0.068755f,	0.139108f,	0.342834f,	0.095364f,
+			0.054899f,	0.238664f,	0.069540f,	0.139804f,	0.037283f,	0.199731f,	0.015415f,	0.058373f,	0.072123f,	0.284589f,	0.002410f,	0.151082f,	0.003756f,	0.105466f,	0.228639f,	0.032629f,	0.008686f,
+			0.084742f,	0.025579f,	0.237383f,	0.005927f,	0.008055f,	0.045269f,	0.008128f,	0.151579f,	0.145854f,	0.003373f,	0.073813f,	0.016641f,	0.053007f,	0.102300f,	0.060376f,	0.076923f,	0.199854f,
+			0.047785f,	0.170059f,	0.007077f,	0.123441f,	0.315684f,	0.190630f,	0.314882f,	0.022440f,	0.061018f,	0.048065f,	0.141336f,	0.059948f,	0.008977f,	0.102733f,	0.034897f,	0.028067f,	0.003788f,
+			0.379224f,	0.228286f,	0.035941f,	0.013238f,	0.302372f,	0.135689f,	0.031149f,	0.006227f,	0.025424f,	0.031502f,	0.057687f,	0.185078f,	0.029172f,	0.133234f,	0.049679f,	0.066191f,	0.248115f,
+			0.008053f,	0.231876f,	0.035668f,	0.000317f,	0.055323f,	0.039636f,	0.048940f,	0.196968f,	0.069606f,	0.030389f,	0.188650f,	0.204523f,	0.013083f,	0.004876f,	0.243627f,	0.006018f,	0.057522f,
+			0.092179f,	0.115537f,	0.205882f,	0.190862f,	0.118967f,	0.146506f,	0.089374f,	0.033469f,	0.031313f,	0.037811f,	0.274585f,	0.199844f,	0.086242f,	0.256492f,	0.025820f,	0.224890f,	0.026792f,
+			0.283237f,	0.134090f,	0.060304f,	0.084480f,	0.122372f,	0.066810f,	0.006276f,	0.013340f,	0.023034f,	0.185347f,	0.062098f,	0.325222f,	0.050046f,	0.015309f,	0.006202f,	0.144935f,	0.007177f,
+			0.086512f,	0.053709f,	0.019277f,	0.108253f,	0.044377f,	0.125105f,	0.041209f,	0.085498f,	0.022142f,	0.055581f,	0.158273f,	0.027243f,	0.163194f,	0.075221f,	0.051285f,	0.004868f,	0.138619f,
+			0.285332f,	0.000546f,	0.075602f,	0.137386f,	0.145953f,	0.022283f,	0.304374f,	0.010677f,	0.022857f,	0.224050f,	0.114622f,	0.126861f,	0.182767f,	0.004786f,	0.025324f,	0.032858f,	0.357910f,
+			0.342276f,	0.084018f,	0.237187f,	0.025223f,	0.113602f,	0.052643f,	0.009836f,	0.248977f,	0.078697f,	0.140201f,	0.072415f,	0.254213f,	0.317109f,	0.139684f,	0.107127f,	0.086353f,	0.337939f,
+			0.040943f,	0.056287f,	0.033560f,	0.166414f,	0.074701f,	0.057832f,	0.159668f,	0.140303f,	0.185735f,	0.181560f,	0.047044f,	0.108909f,	0.028010f,	0.331609f,	0.103438f,	0.018620f,	0.017392f
+		}, 1.0f
+		);
+		return filter;
+	}
+
+	TestBuilder& TestBuilder::addFilter(shared_ptr<Filter> filter)
 	{
 		test_.filters_.push_back(filter);
 		return *this;
 	}
 
-	TestBuilder & TestBuilder::setFilters(vector<shared_ptr<AbstractFilter>> filters)
+	TestBuilder & TestBuilder::setFilters(vector<shared_ptr<Filter>> filters)
 	{
 		test_.filters_ = filters;
 		return *this;
@@ -467,6 +511,10 @@ namespace processing
 
 	Test TestBuilder::build()
 	{
+		std::sort(test_.filters_.begin(), test_.filters_.end(), [](auto filter1, auto filter2) 
+		{
+			return filter1->getWidth() < filter2->getWidth();
+		});
 		return test_;
 	}
 

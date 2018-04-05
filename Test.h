@@ -5,7 +5,6 @@
 #include <iostream>
 #include <algorithm>
 #include "opencv2/core/utility.hpp"
-#include "Filter.h"
 #include "Runnable.h"
 
 
@@ -16,7 +15,7 @@ namespace processing
 {
 
 	static const string INPUT_IMAGE_PATH = "input_img.jpg";
-
+	class Filter;
 	class TestBuilder;
 	class Test
 	{
@@ -41,7 +40,7 @@ namespace processing
 
 
 	private:
-		vector<shared_ptr<AbstractFilter>> filters_;
+		vector<shared_ptr<Filter>> filters_;
 		vector<shared_ptr<Runnable>> runnables_;
 		uint replications_;
 		string fileName_;
@@ -50,22 +49,23 @@ namespace processing
 	public:
 		//excel generate command
 		//=CONCAT(SUBSTITUTE(TEXT(ROUND(RAND()*RAND()*0,4;6);"0,000000");",";".";1);"f,")
-		static shared_ptr<AbstractFilter> get1x1Filter();
+		static shared_ptr<Filter> get1x1Filter();
 		
-		static shared_ptr<AbstractFilter> get3x3Filter();
+		static shared_ptr<Filter> get3x3Filter();
 
-		static shared_ptr<AbstractFilter> get5x5Filter();
+		static shared_ptr<Filter> get5x5Filter();
 
-		static shared_ptr<AbstractFilter> get7x7Filter();
+		static shared_ptr<Filter> get7x7Filter();
 
-		static shared_ptr<AbstractFilter> get9x9Filter();
+		static shared_ptr<Filter> get9x9Filter();
 
-		static shared_ptr<AbstractFilter> get11x11Filter();
+		static shared_ptr<Filter> get11x11Filter();
 
-		static shared_ptr<AbstractFilter> get13x13Filter();
+		static shared_ptr<Filter> get13x13Filter();
 
-		static shared_ptr<AbstractFilter> get15x15Filter();
+		static shared_ptr<Filter> get15x15Filter();
 		
+		static shared_ptr<Filter> get17x17Filter();
 		
 
 	};
@@ -77,10 +77,10 @@ namespace processing
 		Test test_;
 
 	public:
-		TestBuilder& addFilter(shared_ptr<AbstractFilter> filter);
+		TestBuilder& addFilter(shared_ptr<Filter> filter);
 
 
-		TestBuilder& setFilters(vector<shared_ptr<AbstractFilter>> filters);
+		TestBuilder& setFilters(vector<shared_ptr<Filter>> filters);
 
 
 		TestBuilder& addRunnable(shared_ptr<Runnable> runnable);

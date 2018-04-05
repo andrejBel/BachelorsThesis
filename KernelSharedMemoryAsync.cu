@@ -168,7 +168,7 @@ namespace processing
 	{}
 
 
-	void KernelSharedMemoryAsync::run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelSharedMemoryAsync::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
 
 		float* deviceGrayImageOut = 0;

@@ -27,7 +27,7 @@ namespace processing
 		{
 			return memory_;
 		}
-
+		
 		inline size_t getPitch() 
 		{
 			return pitch_;

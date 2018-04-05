@@ -20,7 +20,7 @@ namespace processing
 
 		DELETECOPYASSINGMENT(KernelSharedMemoryAsync)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<AbstractFilter>>& filters, vector<shared_ptr<float>>& results)  override;
+		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)  override;
 
 		virtual string getDescription() override
 		{
