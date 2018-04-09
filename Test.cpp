@@ -2,13 +2,11 @@
 #include "Filter.h"
 #include "processing.h"
 #include <memory>
-#include "KernelSharedMemory.h"
-#include "KernelSlowConvolution.h"
-#include "KernelSlowConvolutionNoEdgeCopy.h"
+#include "KernelSharedMemoryFullBlock.h"
+#include "KernelNaiveImproved.h"
 #include "CpuSlowConvolution.h"
 #include "CPUSlowConvolutionAsync.h"
-#include "KernelSharedMemoryManaged.h"
-#include "KernelSharedMemoryAsync.h"
+#include "KernelSharedMemoryIncompleteBlock.h"
 #include "KernelNaive.h"
 #include "CpuCropped.h"
 #include "ImageFactory.h"
@@ -54,8 +52,8 @@ namespace processing
 				cout << "bezim" << endl;
 				for (size_t j = 0; j < pixels; j++)
 				{
-					if ([&resultFirst, &resultSecond, j]() {
-						return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > 0.1;
+					if ([&resultFirst, &resultSecond, j, this]() {
+						return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > epsilon_;
 					}())
 					{
 
@@ -137,6 +135,7 @@ namespace processing
 			vector<shared_ptr<float>>& resultsSecond = results[1];
 			size_t pixels = image.getNumPixels();
 			auto size = std::min(resultsFirst.size(), resultsSecond.size());
+			size = std::min(filters_.size(), size);
 			for (size_t i = 0; i < size; i++)
 			{
 				shared_ptr<float> resultFirst = resultsFirst[i];
@@ -145,8 +144,8 @@ namespace processing
 				size_t range = (columns - (filters_[i]->getWidth() - 1)) * (rows - (filters_[i]->getWidth() - 1));
 				for (size_t j = 0; j < range; j++)
 				{
-					if ([&resultFirst, &resultSecond, j]() {
-						return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > 0.1;
+					if ([&resultFirst, &resultSecond, j, this]() {
+						return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > epsilon_;
 					}())
 					{
 
@@ -168,17 +167,16 @@ namespace processing
 	void Test::testAlone(shared_ptr<Runnable> runnable, uint replications)
 	{
 		TestBuilder builder;
-		builder
-			.addFilter(Test::get1x1Filter())
-			.addFilter(Test::get3x3Filter())
-			.addFilter(Test::get5x5Filter())
-			//.addFilter(Test::get7x7Filter())
-			//.addFilter(Test::get9x9Filter())
-			//.addFilter(Test::get11x11Filter())
-			//.addFilter(Test::get13x13Filter())
-			.addFilter(Test::get15x15Filter())
-			.addRunnable(runnable).setReplications(replications);
-		builder.build()();
+		builder.addRunnable(runnable).setReplications(replications);
+		//builder.setFilters({ Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter() }).build()();
+		//builder.setFilters({ Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter() }).build()();
+		//builder.setFilters({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter() }).build()();
+		//builder.setFilters({ Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter() }).build()();
+		//builder.setFilters({ Test::get9x9Filter(), Test::get9x9Filter(), Test::get9x9Filter(), Test::get9x9Filter() }).build()(); // (9, 32, 16, 29, 13)
+		//builder.setFilters({ Test::get11x11Filter(), Test::get11x11Filter(), Test::get11x11Filter(), Test::get11x11Filter() }).build()();
+		//builder.setFilters({ Test::get13x13Filter(), Test::get13x13Filter(), Test::get13x13Filter() }).build()();
+		//builder.setFilters({ Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter() }).build()();
+		builder.setFilters({ Test::get13x13Filter() }).build()();
 	}
 
 
@@ -228,14 +226,18 @@ namespace processing
 	{
 		TestBuilder builder;
 		builder
-			.addFilter(Test::get1x1Filter())
-			.addFilter(Test::get3x3Filter())
-			.addFilter(Test::get5x5Filter())
-			.addFilter(Test::get7x7Filter())
-			.addFilter(Test::get9x9Filter())
-			.addFilter(Test::get11x11Filter())
-			.addFilter(Test::get13x13Filter())
+			//.addFilter(Test::get1x1Filter())
+			//.addFilter(Test::get3x3Filter())
+			//.addFilter(Test::get3x3Filter())
+			//.addFilter(Test::get5x5Filter())
+			//.addFilter(Test::get7x7Filter())
+			//.addFilter(Test::get9x9Filter())
+			//.addFilter(Test::get11x11Filter())
+			//.addFilter(Test::get13x13Filter())
+			//.addFilter(Test::get13x13Filter())
 			.addFilter(Test::get15x15Filter())
+			//.addFilter(Test::get15x15Filter())
+			//.addFilter(Test::get15x15Filter())
 			.addRunnable(runnable1)
 			.addRunnable(runnable2)
 			.setReplications(replications);
@@ -255,17 +257,12 @@ namespace processing
 		vector<shared_ptr<Filter>> filters = { Test::get3x3Filter() , Test::get5x5Filter(), Test::get7x7Filter() };
 		builder.setFilters(filters);
 		{
-			vector<shared_ptr<Runnable>> runnables = { make_shared<KernelSharedMemory>(), make_shared<CpuSlowConvolution>() };
+			vector<shared_ptr<Runnable>> runnables = { make_shared<KernelSharedMemoryFullBlock>(), make_shared<CpuSlowConvolution>() };
 			builder.setRunnables(runnables);
 			builder.build()();
 		}
 		{
-			vector<shared_ptr<Runnable>> runnables = { make_shared<KernelSlowConvolution>(), make_shared<CpuSlowConvolution>() };
-			builder.setRunnables(runnables);
-			builder.build()();
-		}
-		{
-			vector<shared_ptr<Runnable>> runnables = { make_shared<KernelSlowConvolutionNoEdgeCopy>(), make_shared<CpuSlowConvolution>() };
+			vector<shared_ptr<Runnable>> runnables = { make_shared<KernelNaiveImproved>(), make_shared<CpuSlowConvolution>() };
 			builder.setRunnables(runnables);
 			builder.build()();
 		}
@@ -295,10 +292,10 @@ namespace processing
 		static shared_ptr<Filter> filter = createFilter
 		(3,
 		{
-			1,  1, 1 ,
-			1, -8, 1 ,
-			1,  1, 1
-		}, 1.0f
+			1,1,1,
+			1,-8,1,
+			1,1,1
+		}, 1.0
 		);
 		
 		
@@ -307,23 +304,23 @@ namespace processing
 
 	shared_ptr<Filter> Test::get5x5Filter()
 	{
-		/*
+		
 		static shared_ptr<Filter> filter = createFilter
 		(5,
 		{
-			-1.0f,2.0f,1.0f,1.5f, 1.6f,
-			-2.0f,7.0f,2.0f,5.8f,12.1f,
-			-1.0f,8.0f,2.0f,4.7f,3.3f,
-			-4.1f,1.28f,0.14f,2.3f,0.38f,
-			-1.0f,4.56f,10.02f,4.73f,3.33f
-		}, 1.7f
+			1,  4,  6,  4,  1,
+			4, 16, 24, 16,  4,
+			6, 24, 36, 24,  6,
+			4, 16, 24, 16,  4,
+			1,  4,  6,  4,  1
+		}, 1.0/256.0
 		);
-		*/
-		const int size = 5*5;
-		vector<float> filterValues(size);
+		
+		//const int size = 5*5;
+		//vector<float> filterValues(size);
 
-		fill(filterValues.begin(), filterValues.end(), 1);
-		static shared_ptr<Filter> filter = createFilter(5, filterValues, 1.0 / size);
+		//fill(filterValues.begin(), filterValues.end(), 1);
+		//static shared_ptr<Filter> filter = createFilter(5, filterValues, 1.0 / size);
 		return filter;
 	}
 

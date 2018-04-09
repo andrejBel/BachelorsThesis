@@ -55,8 +55,8 @@ namespace processing
 				size_t range = (columns - (filters_[i][0]->getWidth() - 1)) * (rows - (filters_[i][0]->getWidth() - 1));
 				for (size_t j = 0; j < range; j++)
 				{
-					if ([&resultFirst, &resultSecond, j]() {
-						return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > 0.1;
+					if ([&resultFirst, &resultSecond, j, this]() {
+						return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > epsilon_;
 					}())
 					{
 

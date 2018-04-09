@@ -30,11 +30,7 @@ namespace processing
 case FILTERWIDTH:\
 {\
 	float * ptr =  (deviceFilters.get() + offset);\
-	timer.start(); \
 	convolutionGPUNaive << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), FILTERWIDTH);\
-	timer.stop(); \
-	cout << "FilterWidth: " << FILTERWIDTH << ", time: " << timer.getElapsedTime() << endl; \
-	cout << "Bandwidth: " << (( (gridSize.x * blockSize.x * gridSize.y * blockSize.y )  *(FILTERWIDTH * FILTERWIDTH * 2 + 1)  / timer.getElapsedTime()) / 1e6) << " GB/s" << endl; \
 	break;\
 }
 
@@ -74,7 +70,6 @@ case FILTERWIDTH:\
 
 	void KernelNaive::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
-		GpuTimer timer;
 		shared_ptr<float> deviceFilters = makeDeviceFilters(filters);
 		// filter allocation and initialization
 		shared_ptr<float> deviceGrayImageOut = allocateMemmoryDevice<float>(image.getNumPixels());
@@ -84,9 +79,6 @@ case FILTERWIDTH:\
 		shared_ptr<float> deviceGrayImageIn = allocateMemmoryDevice<float>(image.getNumPixels());
 		checkCudaErrors(cudaMemcpy(deviceGrayImageIn.get(), hostGrayImage, image.getNumPixels() * sizeof(float), cudaMemcpyHostToDevice));
 		// memory allocation
-
-
-
 		const uint numberOfThreadsInBlock = 16;
 		const dim3 blockSize(numberOfThreadsInBlock, numberOfThreadsInBlock);
 		const dim3 gridSize((image.getNumCols() + blockSize.x - 1) / blockSize.x, (image.getNumRows() + blockSize.y - 1) / blockSize.y, 1);
@@ -94,7 +86,6 @@ case FILTERWIDTH:\
 		uint offset(0);
 		for (auto& filter : filters)
 		{
-
 			switch (filter->getWidth())
 			{
 				CONVOLUTIONSLOWNAIVE(1)

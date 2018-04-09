@@ -1,58 +1,19 @@
 #include "processing.h"
 #include "Runnable.h"
 #include <algorithm>
-#include "MemoryPoolPinned.h"
-
+#include "ImageFactory.h"
+#include "Filter.h"
 namespace processing 
 {
 
-	ImageFactory::ImageFactory(const string & fileName)
-	{
-		Mat image = cv::imread(fileName, CV_LOAD_IMAGE_COLOR);
-		if (image.empty()) {
-			std::cerr << "Couldn't open file: " << fileName << std::endl;
-			exit(1);
-		}
-		cv::cvtColor(image, imageRGBAInput_, CV_BGR2RGBA);
-		cv::cvtColor(imageRGBAInput_, imageGrayInput_, CV_RGBA2GRAY);
-
-		
-		imageGrayInputFloat_ = MemoryPoolPinned::getMemoryPoolPinnedForInput().acquireMemory();
-		const size_t numPixels = imageRGBAInput_.rows * imageRGBAInput_.cols;
-		std::copy(imageGrayInput_.data, imageGrayInput_.data + numPixels, imageGrayInputFloat_.get());
-		imageRGBAOutput_.create(imageRGBAInput_.rows, imageRGBAInput_.cols, CV_8UC4);
-		imageGrayOutput_.create(imageRGBAInput_.rows, imageRGBAInput_.cols, CV_8UC1);
-	}
-
-	void ImageFactory::copyDeviceRGBAToHostRGBAOut(uchar4 * devicePointer)
-	{
-		
-		checkCudaErrors(cudaMemcpy(getOutputRGBAPointer(), devicePointer, imageRGBAOutput_.rows * imageRGBAOutput_.cols * sizeof(uchar4), cudaMemcpyDeviceToHost));
-	}
-
-	void ImageFactory::copyDeviceGrayToHostGrayOut(uchar * devicePointer)
-	{
-		checkCudaErrors(cudaMemcpy(getOutputGrayPointer(), devicePointer, imageGrayOutput_.rows * imageGrayOutput_.cols * sizeof(uchar), cudaMemcpyDeviceToHost));
-	}
-
-	void ImageFactory::saveRGBAImgOut(const string & filename)
-	{
-		Mat outPut(imageRGBAOutput_.rows, imageRGBAOutput_.cols, CV_8UC4, getOutputRGBAPointer());
-		cv::cvtColor(outPut, outPut, CV_RGBA2BGR);
-		cv::imwrite(filename.c_str(), outPut);
-	}
-
-	void ImageFactory::saveGrayImgOut(const string & filename)
-	{
-		cv::imwrite(filename.c_str(), imageGrayOutput_);
-	}
+	
 
 	void deallocateMemmoryDevice(void * pointer)
 	{
 		checkCudaErrors(cudaFree(pointer));
 	}
 
-	shared_ptr<float> makeDeviceFilters(vector<shared_ptr<AbstractFilter>>& filters)
+	shared_ptr<float> makeDeviceFilters(vector<shared_ptr<Filter>>& filters)
 	{
 		size_t memmoryToAllocateForFiltersOnDevice(0);
 		for_each(filters.begin(), filters.end(), [&memmoryToAllocateForFiltersOnDevice](auto& filter) { memmoryToAllocateForFiltersOnDevice += filter->getSize(); });
@@ -70,29 +31,50 @@ namespace processing
 		return deviceFilters;
 	}
 
-	shared_ptr<AbstractFilter> createFilter(uint width, vector<float> filter, const float multiplier)
+	shared_ptr<Filter> createFilter(const uint width, const vector<float>& filter, const float multiplier)
 	{
-		switch (width)
-		{
-		case 1: return make_shared<Filter<1>>(filter, multiplier);
-		case 3: return make_shared<Filter<3>>(filter, multiplier);
-		case 5: return make_shared<Filter<5>>(filter, multiplier);
-		case 7: return make_shared<Filter<7>>(filter, multiplier);
-		case 9: return make_shared<Filter<9>>(filter, multiplier);
-		case 11: return make_shared<Filter<11>>(filter, multiplier);
-		case 13: return make_shared<Filter<13>>(filter, multiplier);
-		case 15: return make_shared<Filter<15>>(filter, multiplier);
-		default:
-			std::cerr << "Filter with width:" << width << "not supported!" << endl;
-			break;
-		}
-		return shared_ptr<AbstractFilter>();
+		return make_shared<Filter>(width, filter, multiplier);
 	}
 
-	shared_ptr<AbstractFilter> createFilter(uint width, float * filter, const float multiplier)
+	shared_ptr<Filter> createFilter(const uint width, const float * filter, const float multiplier)
 	{
-		vector<float> filterVec(filter, filter + width);
+		vector<float> filterVec(filter, filter + width * width);
 		return createFilter(width, filterVec, multiplier);
+	}
+
+	pair<bool, string> controlInputForMultiConvolution(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters)
+	{
+		size_t imageSize = images.size();
+		if (imageSize == 0)
+		{
+			return make_pair(false, "No images to proces");
+		}
+		int numCols = images[0]->getNumCols(); //x
+		int numRows = images[0]->getNumRows(); //y
+		size_t pixels = numCols * numRows;
+		for (size_t i = 1; i < imageSize; ++i)
+		{
+			if (images[i]->getNumCols() != numCols || images[i]->getNumRows() != numRows)
+			{
+				return  make_pair(false, "Images must have the same dimension");
+			}
+		}
+		for (size_t i = 0; i < filters.size(); ++i)
+		{
+			if (filters[i].size() != imageSize)
+			{
+				return make_pair(false, "Filter group size is different than image size");
+			}
+			int filterWidth = filters[i][0]->getWidth();
+			for (size_t j = 1; j < imageSize; ++j)
+			{
+				if (filters[i][j]->getWidth() != filterWidth)
+				{
+					return make_pair(false, "Filter in group are of different size");
+				}
+			}
+		}
+		return make_pair(true, "OK");
 	}
 
 

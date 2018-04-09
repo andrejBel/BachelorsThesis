@@ -16,9 +16,10 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include "Filter.h"
+
 #include <mutex>
 #include <condition_variable>
+#include <utility>
 
 using namespace std;
 using namespace cv;
@@ -28,12 +29,15 @@ using namespace cv;
 namespace processing 
 {
 
+	class Filter;
+	class ImageFactory;
+
 	template <typename int N>
 	struct Box
 	{
-		CPUGPU Box() {}
+		__device__ __host__ Box() {}
 
-		CPUGPU Box(Box& other) {
+		__device__ __host__ Box(Box& other) {
 			for (int i = 0; i < N; i++)
 			{
 				this->memory_[i] = other.memory_[i];
@@ -105,7 +109,7 @@ namespace processing
 	static const int PITCHED_MEMORY_BUFFER_SIZE_INPUT = 2;
 	static const int PITCHED_MEMORY_BUFFER_SIZE_OUTPUT = 10;
 
-	const int MAXFILTERWIDTH = 15;
+	const int MAXFILTERWIDTH = 17;
 	static __constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH * PITCHED_MEMORY_BUFFER_SIZE_OUTPUT];
 	static __constant__ Box<PITCHED_MEMORY_BUFFER_SIZE_OUTPUT> PITCHED_MEMORY_BUFFER_DEVICE; 
 	static __device__ __constant__ size_t INPUT_PITCH_DEVICE[1];
@@ -113,78 +117,6 @@ namespace processing
 
 	static QueueBuffer<PITCHED_MEMORY_BUFFER_SIZE_OUTPUT> PITCHED_MEMORY_BUFFER_HOST;
 	
-
-	class Runnable;
-
-	class ImageFactory
-	{
-	public:
-		ImageFactory(const string& fileName);
-
-		ImageFactory(const ImageFactory& other) = delete;
-
-		ImageFactory& operator=(const ImageFactory& other) = delete;
-	
-
-		inline uchar4* getInputRGBAPointer() 
-		{
-			return reinterpret_cast<uchar4 *>(imageRGBAInput_.ptr<uchar>(0));
-		}
-
-		inline uchar* getInputGrayPointer()
-		{
-			return imageGrayInput_.ptr<uchar>(0);
-		}
-
-		inline uchar4* getOutputRGBAPointer()
-		{
-			return reinterpret_cast<uchar4 *>(imageRGBAOutput_.ptr<uchar>(0));
-		}
-
-		inline uchar* getOutputGrayPointer()
-		{
-			return imageGrayOutput_.ptr<uchar>(0);
-		}
-		
-		inline float* getInputGrayPointerFloat()
-		{
-			return  imageGrayInputFloat_.get();
-		}
-
-		inline int getNumRows() 
-		{ 
-			return imageRGBAInput_.rows;
-		}
-		
-		inline int getNumCols()
-		{
-			return imageRGBAInput_.cols;
-		}
-
-		inline size_t getNumPixels() 
-		{
-			return imageRGBAInput_.cols * imageRGBAInput_.rows;
-		}
-
-		void copyDeviceRGBAToHostRGBAOut(uchar4* devicePointer);
-
-		void copyDeviceGrayToHostGrayOut(uchar* devicePointer);
-
-		void saveRGBAImgOut(const string& filename);
-
-		void saveGrayImgOut(const string& filename);
-
-	private:
-		//attributes
-		cv::Mat imageRGBAInput_;
-		cv::Mat imageGrayInput_;
-		shared_ptr<float> imageGrayInputFloat_;
-
-		cv::Mat imageRGBAOutput_;
-		cv::Mat imageGrayOutput_;
-
-	};
-
 
 
 
@@ -274,12 +206,22 @@ namespace processing
 		return ((numToRound + multiple - 1) / multiple) * multiple;
 	}
 
-	shared_ptr<float> makeDeviceFilters(vector<shared_ptr<AbstractFilter>>& filters);
+	shared_ptr<float> makeDeviceFilters(vector<shared_ptr<Filter>>& filters);
 	
-	shared_ptr<AbstractFilter> createFilter(uint width, vector<float> filter, const float multiplier = 1.0);
+	shared_ptr<Filter> createFilter(const uint width, const vector<float>& filter, const float multiplier = 1.0);
 
-	shared_ptr<AbstractFilter> createFilter(uint width, float* filter, const float multiplier = 1.0);
+	shared_ptr<Filter> createFilter(const uint width, const float* filter, const float multiplier = 1.0);
 	
-	
+	// return check state and error message
+	pair<bool, string> controlInputForMultiConvolution(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters);
+
+	template<typename function>
+	void timeIt(function function, const string&  description = "")
+	{
+		auto begin = std::chrono::steady_clock::now();
+		function();
+		auto end = std::chrono::steady_clock::now();
+		std::cout << "Time difference " << description << ": " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << std::endl;
+	}
 
 }
