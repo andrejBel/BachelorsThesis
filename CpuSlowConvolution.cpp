@@ -9,7 +9,9 @@
 #define ACCEPTFILTER(FILTERWIDTH)\
 case FILTERWIDTH:\
 {\
-	convolution<FILTERWIDTH>(image, filter->getFilter(), result.get());\
+	timeIt([&] {\
+		convolution<FILTERWIDTH>(image, filter->getFilter(), result.get()); \
+	}, getDescription() + " filterWidth: " + to_string(FILTERWIDTH)); \
 	break;\
 }
 

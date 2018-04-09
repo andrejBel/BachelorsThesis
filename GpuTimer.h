@@ -6,11 +6,11 @@ class GpuTimer
 {
 public:
 
-	GpuTimer()
-	{
-		cudaEventCreate(&start_);
-		cudaEventCreate(&stop_);
-	}
+	
+
+	GpuTimer(const GpuTimer& other) = delete;
+
+	const GpuTimer& operator=(const GpuTimer& other) = delete;
 
 	~GpuTimer()
 	{
@@ -36,7 +36,19 @@ public:
 		return elapsed;
 	}
 
+	static GpuTimer& getGpuTimer() 
+	{
+		static GpuTimer timer;
+		return timer;
+	}
+
 private:
+	GpuTimer()
+	{
+		cudaEventCreate(&start_);
+		cudaEventCreate(&stop_);
+	}
+
 	cudaEvent_t start_;
 	cudaEvent_t stop_;
 
