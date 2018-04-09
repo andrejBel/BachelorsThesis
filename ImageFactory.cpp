@@ -5,7 +5,7 @@
 namespace processing 
 {
 
-	ImageFactory::ImageFactory(const string & fileName, bool memoryPool) :
+	ImageFactory::ImageFactory(const string & fileName, const bool memoryPool) :
 		memoryPool_(memoryPool)
 	{
 		imread(fileName, CV_LOAD_IMAGE_UNCHANGED).copyTo(imageGrayInput_);
@@ -31,26 +31,17 @@ namespace processing
 		ImageFactory::saveImage(filename, factory.getNumCols(), factory.getNumRows(), factory.getInputGrayPointerFloat());
 	}
 
-	void ImageFactory::saveImage(const string & filename, int numCols, int numRows, float * data)
-	{
-		Mat output_image(numRows, numCols, CV_32FC1, data);
-		float * fl = (float *)output_image.ptr<uchar>(0);
-		cout << "Float" << endl;
-		for (int i = 0; i < 10; i++)
+	void ImageFactory::saveImage(const string & filename, int numCols, int numRows, float * data, const bool cropped, const int filterWidth)
+	{			
+		int toAdd(0);
+		if ( cropped && filterWidth) 
 		{
-			cout << fl[0] << endl;
+			toAdd = -filterWidth + 1;
 		}
-		cout << "Uchar" << endl;
+		Mat output_image(numRows + toAdd, numCols + toAdd, CV_32FC1, data);
 		threshold(output_image, output_image, 0, 0, cv::THRESH_TOZERO);
 		cv::normalize(output_image, output_image, 0.0, 255.0, cv::NORM_MINMAX);
-
 		output_image.convertTo(output_image, CV_8UC1);
-		uchar * uch =  output_image.ptr<uchar>(0);
-		for (int i = 0; i < 10; i++)
-		{
-			cout << (int) uch[0] << endl;
-		}
-
 		cv::imwrite(filename, output_image);
 	}
 

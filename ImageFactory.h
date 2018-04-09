@@ -16,7 +16,7 @@ namespace processing
 	class ImageFactory
 	{
 	public:
-		ImageFactory(const string& fileName, bool memoryPool = true);
+		ImageFactory(const string& fileName, const bool memoryPool = true);
 
 		ImageFactory(const ImageFactory& other) = delete;
 
@@ -44,7 +44,7 @@ namespace processing
 
 		static void saveImage(const string& filename, const ImageFactory& factory);
 
-		static void saveImage(const string& filename, int numCols, int numRows, float* data);
+		static void saveImage(const string& filename, int numCols, int numRows, float* data, const bool cropped = false, const int filterWidth = 0);
 
 	private:
 		cv::Mat imageGrayInput_;
