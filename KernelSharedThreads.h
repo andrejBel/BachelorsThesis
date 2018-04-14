@@ -30,22 +30,6 @@ namespace processing
 
 	};
 
-	struct CudaStream
-	{
-		CudaStream()
-		{
-			cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking);
-		}
-
-		~CudaStream()
-		{
-			checkCudaErrors(cudaStreamDestroy(stream_));
-		}
-
-		cudaStream_t stream_;
-
-	};
-
 	struct Job {
 
 		shared_ptr<float> filters_;

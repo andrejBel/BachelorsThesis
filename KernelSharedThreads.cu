@@ -10,7 +10,6 @@
 #include <cstdio>
 #include <cmath>
 #include <iostream>
-#include <thread>
 #include <algorithm>
 #include <type_traits>
 #include <thread>
@@ -206,7 +205,6 @@ namespace processing
 					shared[j + k][i] = row.x;
 					shared[j + k][i + 1] = row.y;
 					shared[j + k][i + 2] = row.z;
-
 				}
 
 			}
@@ -573,9 +571,9 @@ namespace processing
 					break;
 				}
 				checkCudaErrors(cudaStreamSynchronize(stream.stream_));
-				lock.lock();
+				mutexProcessPostProcess_.lock();
 				jobsInPostProcess_.push(job);
-				lock.unlock();
+				mutexProcessPostProcess_.unlock();
 				conditionVariable_.notify_all();
 				if (job.returnInputImage_)
 				{
@@ -645,6 +643,7 @@ namespace processing
 
 		vector<shared_ptr<ImageFactory>> images;
 		images.push_back(shared_ptr<ImageFactory>(&image, [](ImageFactory * ptr) {}));
+
 
 		thread threadPreprocessing(preprocess, std::ref(streams[0]), std::ref(images), std::ref(filters));
 		thread threadProcessing(process, std::ref(streams[1]));
