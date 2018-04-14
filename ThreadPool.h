@@ -35,7 +35,10 @@ public:
 	ThreadPool::Action getNextAction();
 	ThreadPool(int c = 1);
 
-
+	inline size_t getThreadCount() 
+	{
+		return threads_.size();
+	}
 
 	ThreadPool(const ThreadPool& other) = delete;
 

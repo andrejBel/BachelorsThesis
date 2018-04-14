@@ -40,6 +40,7 @@ namespace processing
 		size_t imageSize = images.size();
 		int numCols = images[0]->getNumCols(); //x
 		int numRows = images[0]->getNumRows(); //y
+		
 		size_t pixels = numCols * numRows;
 
 		vector<shared_ptr<float>> partialResults(imageSize);
@@ -83,6 +84,7 @@ namespace processing
 					resultPtr[j] += partialResults[k].get()[j];
 				}
 			}
+
 			results.push_back(result);
 		}
 

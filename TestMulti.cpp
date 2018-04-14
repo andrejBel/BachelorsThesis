@@ -5,7 +5,7 @@
 namespace processing 
 {
 	TestMulti::TestMulti(): 
-		epsilon_(0.001f),
+		epsilon_(0.01f),
 		replications_(1)
 	{}
 
@@ -77,11 +77,33 @@ namespace processing
 	void TestMulti::testAlone(shared_ptr<Runnable> runnable, uint replications)
 	{
 		TestMultiBuilder builder;
-		builder
+		
 			
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get3x3Filter(),Test::get3x3Filter(),Test::get3x3Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter() }))
-			.setImagePaths(vector<string>({ INPUT_IMAGE_PATH , INPUT_IMAGE_PATH , INPUT_IMAGE_PATH }))
+			//.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get3x3Filter(),Test::get3x3Filter(),Test::get3x3Filter() }))
+			const int imageCount = 7;
+			
+
+			{
+				vector<shared_ptr<Filter>> filterGroup;
+				for (int i = 0; i < imageCount; i++)
+				{
+					filterGroup.push_back(Test::get3x3Filter());
+				}
+				builder.addFilterGroup(filterGroup);
+			}
+			{
+				vector<shared_ptr<Filter>> filterGroup;
+				for (int i = 0; i < imageCount; i++)
+				{
+					filterGroup.push_back(Test::get3x3Filter());
+				}
+				builder.addFilterGroup(filterGroup);
+			}
+			for (int i = 0; i < imageCount; i++)
+			{
+				builder.addImagePath(INPUT_IMAGE_PATH);
+			}
+			builder
 			.addRunnable(runnable)
 			.setReplications(replications);
 		builder.build().testCropped();
@@ -91,15 +113,18 @@ namespace processing
 	{
 		TestMultiBuilder builder;
 		builder
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get3x3Filter(),Test::get3x3Filter(),Test::get3x3Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get7x7Filter(),Test::get7x7Filter(),Test::get7x7Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get9x9Filter(),Test::get9x9Filter(),Test::get9x9Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get11x11Filter(),Test::get11x11Filter(),Test::get11x11Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get13x13Filter(),Test::get13x13Filter(),Test::get13x13Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter() }))
-			.setImagePaths(vector<string>({ INPUT_IMAGE_PATH , INPUT_IMAGE_PATH , INPUT_IMAGE_PATH }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
+			.setImagePaths(vector<string>({ INPUT_IMAGE_PATH, INPUT_IMAGE_PATH, INPUT_IMAGE_PATH, INPUT_IMAGE_PATH }))
 			.addRunnable(runnable1)
 			.addRunnable(runnable2)
 			.setReplications(replications);

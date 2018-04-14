@@ -168,7 +168,7 @@ namespace processing
 	{
 		TestBuilder builder;
 		builder.addRunnable(runnable).setReplications(replications);
-		//builder.setFilters({ Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter() }).build()();
+		builder.setFilters({ Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter() }).build()();
 		//builder.setFilters({ Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter() }).build()();
 		//builder.setFilters({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter() }).build()();
 		//builder.setFilters({ Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter() }).build()();
@@ -176,7 +176,7 @@ namespace processing
 		//builder.setFilters({ Test::get11x11Filter(), Test::get11x11Filter(), Test::get11x11Filter(), Test::get11x11Filter() }).build()();
 		//builder.setFilters({ Test::get13x13Filter(), Test::get13x13Filter(), Test::get13x13Filter() }).build()();
 		//builder.setFilters({ Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter() }).build()();
-		builder.setFilters({ Test::get13x13Filter() }).build()();
+		builder.setFilters({ Test::get3x3Filter() }).build()();
 	}
 
 
@@ -226,14 +226,14 @@ namespace processing
 	{
 		TestBuilder builder;
 		builder
-			//.addFilter(Test::get1x1Filter())
+			.addFilter(Test::get1x1Filter())
+			.addFilter(Test::get3x3Filter())
 			//.addFilter(Test::get3x3Filter())
-			//.addFilter(Test::get3x3Filter())
-			//.addFilter(Test::get5x5Filter())
-			//.addFilter(Test::get7x7Filter())
-			//.addFilter(Test::get9x9Filter())
-			//.addFilter(Test::get11x11Filter())
-			//.addFilter(Test::get13x13Filter())
+			.addFilter(Test::get5x5Filter())
+			.addFilter(Test::get7x7Filter())
+			.addFilter(Test::get9x9Filter())
+			.addFilter(Test::get11x11Filter())
+			.addFilter(Test::get13x13Filter())
 			//.addFilter(Test::get13x13Filter())
 			.addFilter(Test::get15x15Filter())
 			//.addFilter(Test::get15x15Filter())
@@ -293,7 +293,7 @@ namespace processing
 		(3,
 		{
 			1,1,1,
-			1,-8,1,
+			1,-9,1,
 			1,1,1
 		}, 1.0
 		);

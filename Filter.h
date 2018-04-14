@@ -32,7 +32,7 @@ namespace processing
 			std::copy(filter.begin(), filter.begin() + filterWidth_*filterWidth_, filter_.begin());
 			if (multiplier != 1.0)
 			{
-				for (uint i = 0; i < filterWidth_* filterWidth_; ++i)
+				for (int i = 0; i < filterWidth_* filterWidth_; ++i)
 				{
 					filter_[i] *= multiplier;
 				}
@@ -45,7 +45,7 @@ namespace processing
 			std::copy(filter, filter + filterWidth_ * filterWidth_, filter_.begin());
 			if (multiplier != 1.0)
 			{
-				for (uint i = 0; i < filterWidth_*filterWidth_; ++i)
+				for (int i = 0; i < filterWidth_*filterWidth_; ++i)
 				{
 					filter_[i] *= multiplier;
 				}
