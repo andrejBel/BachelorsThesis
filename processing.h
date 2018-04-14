@@ -104,10 +104,10 @@ namespace processing
 	static const uint MAX_IMAGE_WIDTH = 2000;
 	static const uint MAX_IMAGE_HEIGHT = 2000;
 	static const size_t MAX_IMAGE_RESOLUTION = MAX_IMAGE_WIDTH*MAX_IMAGE_HEIGHT;
-	static const int PINNED_MEMORY_BUFFER_SIZE_INPUT = 5;
+	static const int PINNED_MEMORY_BUFFER_SIZE_INPUT = 10;
 	static const int PINNED_MEMORY_BUFFER_SIZE_OUTPUT = 40;
-	static const int PITCHED_MEMORY_BUFFER_SIZE_INPUT = 2;
-	static const int PITCHED_MEMORY_BUFFER_SIZE_OUTPUT = 10;
+	static const int PITCHED_MEMORY_BUFFER_SIZE_INPUT = 4;
+	static const int PITCHED_MEMORY_BUFFER_SIZE_OUTPUT = 20;
 
 	const int MAXFILTERWIDTH = 17;
 	static __constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH * PITCHED_MEMORY_BUFFER_SIZE_OUTPUT];
@@ -223,5 +223,21 @@ namespace processing
 		auto end = std::chrono::steady_clock::now();
 		std::cout << "Time difference " << description << ": " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << std::endl;
 	}
+
+	struct CudaStream
+	{
+		CudaStream()
+		{
+			cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking);
+		}
+
+		~CudaStream()
+		{
+			checkCudaErrors(cudaStreamDestroy(stream_));
+		}
+
+		cudaStream_t stream_;
+
+	};
 
 }

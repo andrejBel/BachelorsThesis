@@ -23,8 +23,8 @@
 
 using namespace std;
 
-#define MAX_SMALL_TILE_DIMENION_X 3
-#define MAX_SMALL_TILE_DIMENION_Y 3
+#define MAX_SMALL_TILE_DIMENION_X 2
+#define MAX_SMALL_TILE_DIMENION_Y 2
 
 #define CONVOLUTIONSHAREDINCOMPLETEBLOCK(FILTERWIDTH, BLOCKSIZEX, BLOCKSIZEY, TILESIZEX, TILESIZEY) \
 			case FILTERWIDTH:\
@@ -50,6 +50,7 @@ using namespace std;
 				break; \
 			}
 
+#define MUL(a, b) __mul24(a, b)
 #define IMAD(a, b, c) ( __mul24((a), (b)) + (c) )
 #define CEIL(a, b) ((a + b - 1) / b)
 
@@ -62,19 +63,30 @@ namespace processing
 	__global__ void convolutionGPUSharedIncompleteBlock(float * __restrict__ inputImage, float * __restrict__  outputImage, int inputPitch, int outputPitch)
 	{
 		__shared__ float shared[BLOCK_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y][BLOCK_SIZE_X * MAX_SMALL_TILE_DIMENION_X];
-		int threadX = threadIdx.x * MAX_SMALL_TILE_DIMENION_X;
-		int threadY = threadIdx.y * MAX_SMALL_TILE_DIMENION_Y;
+		int threadX = MUL(threadIdx.x, MAX_SMALL_TILE_DIMENION_X);
+		int threadY = MUL(threadIdx.y, MAX_SMALL_TILE_DIMENION_Y);
 		int2 absoluteImagePosition;
 		absoluteImagePosition.x = IMAD(blockIdx.x, TILE_SIZE_X, threadIdx.x) * MAX_SMALL_TILE_DIMENION_X;
 		absoluteImagePosition.y = IMAD(blockIdx.y, TILE_SIZE_Y, threadIdx.y) * MAX_SMALL_TILE_DIMENION_Y;
+	
 #pragma unroll MAX_SMALL_TILE_DIMENION_Y
 		for (int i = 0; i < MAX_SMALL_TILE_DIMENION_Y; i++)
 		{
+#if MAX_SMALL_TILE_DIMENION_X == 1
+			shared[threadY + i][threadX] = inputImage[IMAD(absoluteImagePosition.y + i, inputPitch, absoluteImagePosition.x + j)];
+#elif MAX_SMALL_TILE_DIMENION_X == 2
+			* ((float2 *)&shared[threadY + i][threadX]) = *(float2 *)(inputImage + IMAD(absoluteImagePosition.y + i, inputPitch, absoluteImagePosition.x));
+#elif MAX_SMALL_TILE_DIMENION_X == 3
+			* ((float3 *)&shared[threadY + i][threadX]) = *(float3 *)(inputImage + IMAD(absoluteImagePosition.y + i, inputPitch, absoluteImagePosition.x));
+#elif MAX_SMALL_TILE_DIMENION_X == 4
+			* ((float4 *)&shared[threadY + i][threadX]) = *(float4 *)(inputImage + IMAD(absoluteImagePosition.y + i, inputPitch, absoluteImagePosition.x));
+#else
 #pragma unroll MAX_SMALL_TILE_DIMENION_X
 			for (int j = 0; j < MAX_SMALL_TILE_DIMENION_X; j++)
 			{
 				shared[threadY + i][threadX + j] = inputImage[IMAD(absoluteImagePosition.y + i, inputPitch, absoluteImagePosition.x + j)];
 			}
+#endif
 		}
 		__syncthreads();
 		if (threadX < TILE_SIZE_X * MAX_SMALL_TILE_DIMENION_X  && threadY < TILE_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y)
@@ -87,14 +99,14 @@ namespace processing
 #pragma unroll FILTER_WIDTH
 				for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
 				{
-					filterValue = FILTERCUDA[yOffset*FILTER_WIDTH + xOffset];
+					filterValue = FILTERCUDA[IMAD(yOffset,FILTER_WIDTH, xOffset)];
 #pragma unroll MAX_SMALL_TILE_DIMENION_Y
 					for (int i = 0; i < MAX_SMALL_TILE_DIMENION_Y; i++)
 					{
 #pragma unroll MAX_SMALL_TILE_DIMENION_X
 						for (int j = 0; j < MAX_SMALL_TILE_DIMENION_X; j++)
 						{
-							results[i *MAX_SMALL_TILE_DIMENION_Y + j] += filterValue * shared[yOffset + threadY + i][xOffset + threadX + j];
+							results[IMAD(i,MAX_SMALL_TILE_DIMENION_Y, j)] += filterValue * shared[yOffset + threadY + i][xOffset + threadX + j];
 						}
 
 					}
@@ -103,11 +115,21 @@ namespace processing
 #pragma unroll MAX_SMALL_TILE_DIMENION_Y
 			for (int i = 0; i < MAX_SMALL_TILE_DIMENION_Y; i++)
 			{
+#if MAX_SMALL_TILE_DIMENION_X == 1
+				* (outputImage + IMAD(absoluteImagePosition.y + i, outputPitch, absoluteImagePosition.x)) = (results[MUL(i * MAX_SMALL_TILE_DIMENION_Y)]);
+#elif MAX_SMALL_TILE_DIMENION_X == 2
+				* ((float2 *)(outputImage + IMAD(absoluteImagePosition.y + i, outputPitch, absoluteImagePosition.x))) = *((float2 *)(&results[MUL(i, MAX_SMALL_TILE_DIMENION_Y)]));
+#elif MAX_SMALL_TILE_DIMENION_X == 3
+				* ((float3*) (outputImage + IMAD(absoluteImagePosition.y + i, outputPitch, absoluteImagePosition.x))) = *((float3 *)&results[MUL(i,MAX_SMALL_TILE_DIMENION_Y)]);
+#elif MAX_SMALL_TILE_DIMENION_X == 4
+				* (float4*)(outputImage + IMAD(absoluteImagePosition.y + i, outputPitch, absoluteImagePosition.x)) = *((float4 *)&results[MUL(i, MAX_SMALL_TILE_DIMENION_Y)]);
+#else
 #pragma unroll MAX_SMALL_TILE_DIMENION_X
 				for (int j = 0; j < MAX_SMALL_TILE_DIMENION_X; j++)
 				{
 					outputImage[IMAD(absoluteImagePosition.y + i, outputPitch, absoluteImagePosition.x + j)] = results[i *MAX_SMALL_TILE_DIMENION_Y + j];
 				}
+#endif 
 			}
 
 		}
@@ -151,6 +173,11 @@ namespace processing
 				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(13, 32, 32, 20, 20)
 				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(15, 32, 32, 18, 18)
 				
+
+
+				/*
+				//3x3
+				
 				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(1, 32, 16, 32, 16)
 				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(3, 32, 16, 30, 14)
 			//	CONVOLUTIONSHAREDINCOMPLETEBLOCK(5, 32, 16, 28, 12)
@@ -159,8 +186,8 @@ namespace processing
 				CONVOLUTIONSHAREDINCOMPLETEBLOCK(11, 32, 20, 28, 16)
 				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(13, 32, 20, 28, 16)
 				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(15, 32, 13, 27, 8)
-				
-				/* 2 x 2
+				*/
+				// 2 x 2
 				CONVOLUTIONSHAREDINCOMPLETEBLOCK(1, 32, 16, 32, 16)
 					CONVOLUTIONSHAREDINCOMPLETEBLOCK(3, 32, 16, 31, 15)
 					CONVOLUTIONSHAREDINCOMPLETEBLOCK(5, 32, 16, 30, 14)
@@ -169,7 +196,7 @@ namespace processing
 				CONVOLUTIONSHAREDINCOMPLETEBLOCK(11, 32, 32, 27, 27)
 				CONVOLUTIONSHAREDINCOMPLETEBLOCK(13, 32, 32, 26, 26)
 				CONVOLUTIONSHAREDINCOMPLETEBLOCK(15, 32, 18, 25, 11)
-					*/
+					
 			default:
 				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
 				break;
