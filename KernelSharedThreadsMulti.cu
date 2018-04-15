@@ -347,8 +347,8 @@ namespace processing
 
 			const int imageSize = images.size();
 			const int groupSize = filters.size();
-			constexpr int OUTPUT_SIZE = PITCHED_MEMORY_BUFFER_SIZE_OUTPUT / 2;
-
+			constexpr int OUTPUT_SIZE = PITCHED_MEMORY_BUFFER_SIZE_OUTPUT;
+			constexpr int INPUT_BATCH_SIZE = PITCHED_MEMORY_BUFFER_SIZE_INPUT;
 
 			vector<vector<shared_ptr<Filter>>> filtersCopy(filters);
 			std::sort(filtersCopy.begin(), filtersCopy.end(), [](vector<shared_ptr<Filter>>& first, vector<shared_ptr<Filter>> second) 
@@ -386,10 +386,10 @@ namespace processing
 
 
 			vector<float *> deviceInputImagesForFilterGroup(imageSize, nullptr);
-			for (int i = 0; i < imageSize; i += OUTPUT_SIZE )
+			for (int i = 0; i < imageSize; i += INPUT_BATCH_SIZE)
 			{
 				int startOfImage = i;
-				int endOfImage = std::min(i + OUTPUT_SIZE - 1, imageSize - 1);
+				int endOfImage = std::min(i + INPUT_BATCH_SIZE - 1, imageSize - 1);
 				int totalUsedImages = endOfImage - startOfImage + 1;
 				
 				
@@ -472,8 +472,6 @@ namespace processing
 				}
 
 			}
-
-			cout << "koniec preprocessing" << endl;
 		}
 
 		void process(CudaStream& stream)
@@ -551,27 +549,38 @@ namespace processing
 			shared_ptr<float> bufferForCopiing[] = { MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory(), MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory() };
 			int indexInBuffer = 0;
 			const size_t pixels = numberOfCols * numberOfRows;
-			for (size_t i = 0; i < filterGroupSize; i++)
+			std::fill(results.begin(), results.end(), nullptr);
+			static mutex localMutexResults;
+			static condition_variable localConditionVariable;
+			thread prepareResults([localMutexResults = std::ref(localMutexResults), localConditionVariable = std::ref(localConditionVariable), &results, pixels, filterGroupSize]()
 			{
-				//results[i] = makeArray<float>(pixels);
-				results[i] = MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory();
-				std::fill(results[i].get(), results[i].get() + pixels, 0);
-				/*
-				double difference = pixels;
-				difference = std::ceil(difference / threadPool.getThreadCount());
-				size_t leftBorder = 0;
-				size_t rightBorder = size_t(difference);
-				for (uint j = 0; j < threadPool.getThreadCount(); ++j)
+				for (size_t i = 0; i < filterGroupSize; i++)
 				{
+					//results[i] = makeArray<float>(pixels);
+					unique_lock<mutex> lock(localMutexResults.get());
+					results[i] = MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory();
+					std::fill(results[i].get(), results[i].get() + pixels, 0);
+					lock.unlock();
+					localConditionVariable.get().notify_all();
+					/*
+					double difference = pixels;
+					difference = std::ceil(difference / threadPool.getThreadCount());
+					size_t leftBorder = 0;
+					size_t rightBorder = size_t(difference);
+					for (uint j = 0; j < threadPool.getThreadCount(); ++j)
+					{
 					threadPool.addTask([leftBorder, rightBorder, result = results[i].get()]()
 					{
-						std::fill(result + leftBorder, result + rightBorder, 0);
+					std::fill(result + leftBorder, result + rightBorder, 0);
 					});
 					leftBorder = rightBorder;
 					rightBorder = std::min(rightBorder + size_t(difference), size_t(pixels));
+					}
+					*/
 				}
-				*/
-			}
+			});
+
+			
 			//threadPool.finishAll();
 			while (end == false)
 			{
@@ -593,19 +602,26 @@ namespace processing
 					const size_t pixels = xlen * ylen;
 					for (int i = 0; i < job.filterCount_; i++)
 					{
-						
+
 						checkCudaErrors(cudaMemcpy2DAsync(bufferForCopiing[indexInBuffer].get(), xlen * sizeof(float), PITCHED_MEMORY_BUFFER_HOST.memory_[(job.bufferStart_ + i) % PITCHED_MEMORY_BUFFER_SIZE_OUTPUT], pitchOutput_, xlen * sizeof(float), ylen, cudaMemcpyDeviceToHost, stream.stream_));
-						threadPool.finishAll();
+
 						checkCudaErrors(cudaStreamSynchronize(stream.stream_));
 
 						PITCHED_MEMORY_BUFFER_HOST.release(1);
 						int filterGroupIndex = job.filterGroupStartIndex + i;
 						//std::transform(results[filterGroupIndex].get(), results[filterGroupIndex].get() + pixels, bufferForCopiing.get(), results[filterGroupIndex].get(), std::plus<float>());
-						
+
 						double difference = pixels;
 						difference = std::ceil(difference / threadPool.getThreadCount());
 						size_t leftBorder = 0;
 						size_t rightBorder = size_t(difference);
+						unique_lock<mutex> lock(localMutexResults);
+						while (results[filterGroupIndex] == nullptr)
+						{
+							localConditionVariable.wait(lock);
+						}
+						lock.unlock();
+						threadPool.finishAll();
 						for (uint i = 0; i < threadPool.getThreadCount(); ++i)
 						{
 							threadPool.addTask([leftBorder, rightBorder, dst = results[filterGroupIndex].get(), src = bufferForCopiing[indexInBuffer].get()]()
@@ -624,7 +640,7 @@ namespace processing
 					}
 				}
 			}
-
+			prepareResults.join();
 		}
 	}
 	
