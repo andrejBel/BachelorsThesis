@@ -43,8 +43,8 @@ namespace processing
 						case FILTERWIDTH: \
 						{ \
 							cudaMemcpyToSymbolAsync(FILTERCUDA, job.filters_.get(), sizeof(float) * FILTERWIDTH * FILTERWIDTH * job.filterCount_, 0, cudaMemcpyHostToDevice, stream.stream_); \
-							const short MAX_SMALL_TILE_DIMENION_X = 2; \
-							const short MAX_SMALL_TILE_DIMENION_Y = 2; \
+							const short MAX_SMALL_TILE_DIMENION_X = 3; \
+							const short MAX_SMALL_TILE_DIMENION_Y = 3; \
 							int colsForGridX = CEIL(job.numCols, MAX_SMALL_TILE_DIMENION_X); \
 							int rowsForGridY = CEIL(job.numRows, MAX_SMALL_TILE_DIMENION_Y); \
 							const int FILTER_WIDTH = FILTERWIDTH; \
@@ -56,7 +56,7 @@ namespace processing
 							{ \
 								switch (job.filterCount_) \
 								{ \
-								case 1: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 1, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 1: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 1, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, true, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
 								case 2: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 2, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
 								case 3: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 3, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
 								case 4: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 4, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
@@ -72,7 +72,7 @@ namespace processing
 							{ \
 								switch (job.filterCount_) \
 								{ \
-								case 1: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 1, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 1: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 1, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, false, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
 								case 2: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 2, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
 								case 3: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 3, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
 								case 4: convolutionGPUSharedFullBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, 4, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break;  \
@@ -86,6 +86,107 @@ namespace processing
 							} \
 							break; \
 						}
+
+#define CONVOLUTIONSHAREDTHREADSSMALLMULTI(FILTERWIDTH, BLOCKSIZEX, BLOCKSIZEY, TILESIZEX, TILESIZEY) \
+						case FILTERWIDTH: \
+						{ \
+							cudaMemcpyToSymbolAsync(FILTERCUDA, job.filters_.get(), sizeof(float) * FILTERWIDTH * FILTERWIDTH * job.filterCount_, 0, cudaMemcpyHostToDevice, stream.stream_); \
+							const short MAX_SMALL_TILE_DIMENION_X = 2; \
+							const short MAX_SMALL_TILE_DIMENION_Y = 2; \
+							int colsForGridX = CEIL(job.numCols, MAX_SMALL_TILE_DIMENION_X); \
+							int rowsForGridY = CEIL(job.numRows, MAX_SMALL_TILE_DIMENION_Y); \
+							const int FILTER_WIDTH = FILTERWIDTH; \
+							const int BLOCK_SIZE_X = BLOCKSIZEX; \
+							const int BLOCK_SIZE_Y = BLOCKSIZEY; \
+							const int TILE_SIZE_X = TILESIZEX; \
+							const int TILE_SIZE_Y = TILESIZEY; \
+							const dim3 blockSize(BLOCK_SIZE_X, BLOCK_SIZE_Y); \
+							const dim3 gridSize((colsForGridX + TILE_SIZE_X - 1) / TILE_SIZE_X, (rowsForGridY + TILE_SIZE_Y - 1) / TILE_SIZE_Y, 1); \
+							if (job.makeZeros) \
+							{ \
+								switch (job.filterCount_) \
+								{ \
+								case 1: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 1, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 2: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 2, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 3: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 3, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 4: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 4, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 5: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 5, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 6: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 6, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 7: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 7, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 8: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 8, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 9: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 9, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 10: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 10, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								} \
+							} \
+							else  \
+							{ \
+								switch (job.filterCount_) \
+								{ \
+								case 1: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 1, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 2: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 2, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 3: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 3, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 4: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 4, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break;  \
+								case 5: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 5, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 6: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 6, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 7: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 7, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 8: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 8, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 9: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 9, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 10: convolutionGPUSharedIncompleteBlockSmall< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 10, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								} \
+							} \
+							break; \
+						}
+
+#define CONVOLUTIONSHAREDTHREADSBIGMULTI(FILTERWIDTH, BLOCKSIZEX, BLOCKSIZEY, TILESIZEX, TILESIZEY) \
+						case FILTERWIDTH: \
+						{ \
+							cudaMemcpyToSymbolAsync(FILTERCUDA, job.filters_.get(), sizeof(float) * FILTERWIDTH * FILTERWIDTH * job.filterCount_, 0, cudaMemcpyHostToDevice, stream.stream_); \
+							const short MAX_SMALL_TILE_DIMENION_X = 3; \
+							const short MAX_SMALL_TILE_DIMENION_Y = 3; \
+							int colsForGridX = CEIL(job.numCols, MAX_SMALL_TILE_DIMENION_X); \
+							int rowsForGridY = CEIL(job.numRows, MAX_SMALL_TILE_DIMENION_Y); \
+							const int FILTER_WIDTH = FILTERWIDTH; \
+							const int BLOCK_SIZE_X = BLOCKSIZEX; \
+							const int BLOCK_SIZE_Y = BLOCKSIZEY; \
+							const int TILE_SIZE_X = TILESIZEX; \
+							const int TILE_SIZE_Y = TILESIZEY; \
+							const dim3 blockSize(BLOCK_SIZE_X, BLOCK_SIZE_Y); \
+							const dim3 gridSize((colsForGridX + TILE_SIZE_X - 1) / TILE_SIZE_X, (rowsForGridY + TILE_SIZE_Y - 1) / TILE_SIZE_Y, 1); \
+							if (job.makeZeros) \
+							{ \
+								switch (job.filterCount_) \
+								{ \
+								case 1: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 1, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 2: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 2, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 3: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 3, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 4: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 4, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 5: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 5, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 6: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 6, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 7: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 7, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 8: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 8, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 9: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 9, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 10: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 10, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, true> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								} \
+							} \
+							else  \
+							{ \
+								switch (job.filterCount_) \
+								{ \
+								case 1: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 1, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 2: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 2, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 3: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 3, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 4: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 4, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break;  \
+								case 5: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 5, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 6: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 6, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 7: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 7, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 8: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 8, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 9: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 9, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								case 10: convolutionGPUSharedIncompleteBlockBig< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y, 10, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, false> << <gridSize, blockSize, 0, stream.stream_ >> > (job.inputImage_, pitchInput_ / sizeof(float), pitchOutput_ / sizeof(float), job.bufferStart_); break; \
+								} \
+							} \
+							break; \
+						}
+
 
 	namespace static_if_detail {
 
@@ -129,10 +230,98 @@ namespace processing
 		return if_;
 	}
 
-	template<typename int FILTER_WIDTH, typename int BLOCK_SIZE_X, typename int BLOCK_SIZE_Y, typename int TILE_SIZE_X, typename int TILE_SIZE_Y, typename int MAX_SMALL_TILE_DIMENION_X = 2, typename int MAX_SMALL_TILE_DIMENION_Y = 2>
-	__global__ void convolutionGPUSharedIncompleteBlock(float * __restrict__ inputImage, float * __restrict__  outputImage, int inputPitch, int outputPitch, const short filterIndex)
+
+	template<typename int FILTER_WIDTH, typename int BLOCK_SIZE_X, typename int BLOCK_SIZE_Y, typename int TILE_SIZE_X, typename int TILE_SIZE_Y, typename int FILTER_COUNT, typename int BUFFER_SIZE, typename bool MAKEZEROS, typename bool SYNC = true, typename int MAX_SMALL_TILE_DIMENION_X = 3, typename int MAX_SMALL_TILE_DIMENION_Y = 3>
+	__global__ void convolutionGPUSharedIncompleteBlockBig(const float * __restrict__ inputImage, const int inputPitch, const int outputPitch, const short bufferStartPosition)
 	{
 		__shared__ float shared[BLOCK_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y][BLOCK_SIZE_X * MAX_SMALL_TILE_DIMENION_X];
+		float results[MAX_SMALL_TILE_DIMENION_X * MAX_SMALL_TILE_DIMENION_Y];
+		int threadX = MUL(threadIdx.x, MAX_SMALL_TILE_DIMENION_X);
+		int threadY = MUL(threadIdx.y, MAX_SMALL_TILE_DIMENION_Y);
+		int2 absoluteImagePosition;
+		absoluteImagePosition.x = IMAD(blockIdx.x, TILE_SIZE_X, threadIdx.x) * MAX_SMALL_TILE_DIMENION_X;
+		absoluteImagePosition.y = IMAD(blockIdx.y, TILE_SIZE_Y, threadIdx.y) * MAX_SMALL_TILE_DIMENION_Y;
+
+#pragma unroll MAX_SMALL_TILE_DIMENION_Y
+		for (int i = 0; i < MAX_SMALL_TILE_DIMENION_Y; i++)
+		{
+			*((float3 *)&shared[threadY + i][threadX]) = *(float3 *)(inputImage + IMAD(absoluteImagePosition.y + i, inputPitch, absoluteImagePosition.x));
+		}
+		__syncthreads();
+		if (threadX < TILE_SIZE_X * MAX_SMALL_TILE_DIMENION_X  && threadY < TILE_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y)
+		{
+			float * outputImage;
+			float filterValue;
+#pragma unroll FILTER_COUNT
+			for (int i = 0; i < FILTER_COUNT; ++i)
+			{
+				outputImage = PITCHED_MEMORY_BUFFER_DEVICE.memory_[(bufferStartPosition + i) % BUFFER_SIZE];
+#pragma unroll MAX_SMALL_TILE_DIMENION_Y
+				for (int k = 0; k < MAX_SMALL_TILE_DIMENION_Y; k++)
+				{
+#pragma unroll MAX_SMALL_TILE_DIMENION_X
+					for (int l = 0; l < MAX_SMALL_TILE_DIMENION_X; l++)
+					{
+						results[k * MAX_SMALL_TILE_DIMENION_Y + l] = 0.0;
+					}
+				}
+#pragma unroll FILTER_WIDTH
+				for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
+				{
+#pragma unroll FILTER_WIDTH
+					for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
+					{
+						filterValue = FILTERCUDA[yOffset*FILTER_WIDTH + xOffset + FILTER_WIDTH * FILTER_WIDTH * i];
+#pragma unroll MAX_SMALL_TILE_DIMENION_Y
+						for (int i = 0; i < MAX_SMALL_TILE_DIMENION_Y; i++)
+						{
+#pragma unroll MAX_SMALL_TILE_DIMENION_X
+							for (int j = 0; j < MAX_SMALL_TILE_DIMENION_X; j++)
+							{
+								results[IMAD(i, MAX_SMALL_TILE_DIMENION_Y, j)] += filterValue * shared[yOffset + threadY + i][xOffset + threadX + j];
+							}
+						}
+					}
+				}
+
+				if (MAKEZEROS)
+				{
+					*((float3 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x))) = *((float3*)&results[0]);
+					*((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x))) = *((float3*)&results[3]);
+					*((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 2, outputPitch, absoluteImagePosition.x))) = *((float3*)&results[6]);
+				}
+				else
+				{
+					float3 fromGlobal = *((float3 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x)));
+					fromGlobal.x += results[0];
+					fromGlobal.y += results[1];
+					fromGlobal.z += results[2];
+					*((float3 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+					fromGlobal = *((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x)));
+					fromGlobal.x += results[3];
+					fromGlobal.y += results[4];
+					fromGlobal.z += results[5];
+					*((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+					fromGlobal = *((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 2, outputPitch, absoluteImagePosition.x)));
+					fromGlobal.x += results[6];
+					fromGlobal.y += results[7];
+					fromGlobal.z += results[8];
+					*((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 2, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+				}
+				static_if<SYNC>([](auto f) {
+					__syncthreads();
+				});
+
+			}
+		}
+	}
+
+
+	template<typename int FILTER_WIDTH, typename int BLOCK_SIZE_X, typename int BLOCK_SIZE_Y, typename int TILE_SIZE_X, typename int TILE_SIZE_Y, typename int FILTER_COUNT, typename int BUFFER_SIZE, typename bool MAKEZEROS, typename bool SYNC = true, typename int MAX_SMALL_TILE_DIMENION_X = 2, typename int MAX_SMALL_TILE_DIMENION_Y = 2>
+	__global__ void convolutionGPUSharedIncompleteBlockSmall(const float * __restrict__ inputImage, const int inputPitch, const int outputPitch, const short bufferStartPosition)
+	{
+		__shared__ float shared[BLOCK_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y][BLOCK_SIZE_X * MAX_SMALL_TILE_DIMENION_X];
+		float results[MAX_SMALL_TILE_DIMENION_X * MAX_SMALL_TILE_DIMENION_Y];
 		int threadX = MUL(threadIdx.x, MAX_SMALL_TILE_DIMENION_X);
 		int threadY = MUL(threadIdx.y, MAX_SMALL_TILE_DIMENION_Y);
 		int2 absoluteImagePosition;
@@ -147,42 +336,97 @@ namespace processing
 		__syncthreads();
 		if (threadX < TILE_SIZE_X * MAX_SMALL_TILE_DIMENION_X  && threadY < TILE_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y)
 		{
-			float results[MAX_SMALL_TILE_DIMENION_X * MAX_SMALL_TILE_DIMENION_Y] = { 0.0 };
+			float * outputImage;
 			float filterValue;
-#pragma unroll FILTER_WIDTH
-			for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
+#pragma unroll FILTER_COUNT
+			for (int i = 0; i < FILTER_COUNT; ++i)
 			{
-#pragma unroll FILTER_WIDTH
-				for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
-				{
-					filterValue = FILTERCUDA[yOffset*FILTER_WIDTH + xOffset + FILTER_WIDTH * FILTER_WIDTH * filterIndex];
+				outputImage = PITCHED_MEMORY_BUFFER_DEVICE.memory_[(bufferStartPosition + i) % BUFFER_SIZE];
 #pragma unroll MAX_SMALL_TILE_DIMENION_Y
-					for (int i = 0; i < MAX_SMALL_TILE_DIMENION_Y; i++)
-					{
+				for (int k = 0; k < MAX_SMALL_TILE_DIMENION_Y; k++)
+				{
 #pragma unroll MAX_SMALL_TILE_DIMENION_X
-						for (int j = 0; j < MAX_SMALL_TILE_DIMENION_X; j++)
-						{
-							results[IMAD(i, MAX_SMALL_TILE_DIMENION_Y, j)] += filterValue * shared[yOffset + threadY + i][xOffset + threadX + j];
-						}
-
+					for (int l = 0; l < MAX_SMALL_TILE_DIMENION_X; l++)
+					{
+						results[k * MAX_SMALL_TILE_DIMENION_Y + l] = 0.0;
 					}
 				}
+#pragma unroll FILTER_WIDTH
+				for (int yOffset = 0; yOffset < FILTER_WIDTH; yOffset++)
+				{
+#pragma unroll FILTER_WIDTH
+					for (int xOffset = 0; xOffset < FILTER_WIDTH; xOffset++)
+					{
+						filterValue = FILTERCUDA[yOffset*FILTER_WIDTH + xOffset + FILTER_WIDTH * FILTER_WIDTH * i];
+#pragma unroll MAX_SMALL_TILE_DIMENION_Y
+						for (int i = 0; i < MAX_SMALL_TILE_DIMENION_Y; i++)
+						{
+#pragma unroll MAX_SMALL_TILE_DIMENION_X
+							for (int j = 0; j < MAX_SMALL_TILE_DIMENION_X; j++)
+							{
+								results[IMAD(i, MAX_SMALL_TILE_DIMENION_Y, j)] += filterValue * shared[yOffset + threadY + i][xOffset + threadX + j];
+							}
+						}
+					}
+				}
+				/*
+				#pragma unroll MAX_SMALL_TILE_DIMENION_Y
+				for (int i = 0; i < MAX_SMALL_TILE_DIMENION_Y; i++)
+				{
+				#pragma unroll MAX_SMALL_TILE_DIMENION_X
+				for (int j = 0; j < MAX_SMALL_TILE_DIMENION_X; j++)
+				{
+				static_if<MAKEZEROS>([outputImage, absoluteImagePosition, outputPitch, &results, i, j, MAX_SMALL_TILE_DIMENION_X = MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y = MAX_SMALL_TILE_DIMENION_Y](auto f) {
+				outputImage[IMAD(absoluteImagePosition.y + i, outputPitch, absoluteImagePosition.x + j)] = results[i *MAX_SMALL_TILE_DIMENION_Y + j];
+				}).else_([outputImage, absoluteImagePosition, outputPitch, &results, i, j, MAX_SMALL_TILE_DIMENION_X = MAX_SMALL_TILE_DIMENION_X, MAX_SMALL_TILE_DIMENION_Y = MAX_SMALL_TILE_DIMENION_Y](auto f) {
+				outputImage[IMAD(absoluteImagePosition.y + i, outputPitch, absoluteImagePosition.x + j)] += results[i *MAX_SMALL_TILE_DIMENION_Y + j];
+				});
+				}
+				}
+
+				*/
+				if (MAKEZEROS)
+				{
+					*((float2 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x))) = *((float2*)&results[0]);
+					*((float2 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x))) = *((float2*)&results[2]);
+				}
+				else
+				{
+					float2 fromGlobal = *((float2 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x)));
+					fromGlobal.x += results[0];
+					fromGlobal.y += results[1];
+					*((float2 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+					fromGlobal = *((float2 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x)));
+					fromGlobal.x += results[2];
+					fromGlobal.y += results[3];
+					*((float2 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+				}
+				/*
+				static_if<MAKEZEROS>([outputImage, absoluteImagePosition, outputPitch, &results](auto f) {
+				*((float2 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x))) = *((float2*)&results[0]);
+				*((float2 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x))) = *((float2*)&results[2]);
+				}).else_([outputImage, absoluteImagePosition, outputPitch, &results](auto f) {
+				float2 fromGlobal = *((float2 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x)));
+				fromGlobal.x += results[0];
+				fromGlobal.y += results[1];
+				*((float2 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+				fromGlobal = *((float2 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x)));
+				fromGlobal.x += results[2];
+				fromGlobal.y += results[3];
+				*((float2 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+				});
+				*/
+
+				static_if<SYNC>([](auto f) {
+					__syncthreads();
+				});
+
 			}
-
-			float2 fromGlobal = *((float2 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x)));
-			fromGlobal.x += results[0];
-			fromGlobal.y += results[1];
-			*((float2 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x))) = fromGlobal;
-			fromGlobal = *((float2 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x)));
-			fromGlobal.x += results[2];
-			fromGlobal.y += results[3];
-			*((float2 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x))) = fromGlobal;
-
 		}
 	}
 
 
-	template<typename int FILTER_WIDTH, typename int BLOCK_SIZE_X, typename int BLOCK_SIZE_Y, typename int FILTER_COUNT, typename int BUFFER_SIZE, typename int TILE_SIZE_X, typename int TILE_SIZE_Y, typename bool MAKEZEROS>
+	template<typename int FILTER_WIDTH, typename int BLOCK_SIZE_X, typename int BLOCK_SIZE_Y, typename int FILTER_COUNT, typename int BUFFER_SIZE, typename int TILE_SIZE_X, typename int TILE_SIZE_Y, typename bool MAKEZEROS, typename bool SYNC = true>
 	__global__ void convolutionGPUSharedFullBlock(const float * __restrict__ inputImage, const int inputPitch, const int outputPitch, const short bufferStartPosition)
 	{
 		float results[TILE_SIZE_X * TILE_SIZE_Y];
@@ -192,7 +436,7 @@ namespace processing
 		int2 positionShared;
 		positionShared.x = blockIdx.x * BLOCK_SIZE_X * TILE_SIZE_X;
 		positionShared.y = blockIdx.y * BLOCK_SIZE_Y * TILE_SIZE_Y;
-		__shared__ float shared[BLOCK_SIZE_Y * TILE_SIZE_Y + (FILTER_WIDTH - 1)][BLOCK_SIZE_X *TILE_SIZE_X + (FILTER_WIDTH - 1)];
+		__shared__ float shared[BLOCK_SIZE_Y * TILE_SIZE_Y + (FILTER_WIDTH - 1) + TILE_SIZE_Y][BLOCK_SIZE_X *TILE_SIZE_X + (FILTER_WIDTH - 1) + TILE_SIZE_X];
 		int threadX = threadIdx.x * TILE_SIZE_X;
 		int threadY = threadIdx.y * TILE_SIZE_Y;
 		for (int j = threadY; j < FILTER_WIDTH - 1 + BLOCK_SIZE_Y * TILE_SIZE_Y; j += BLOCK_SIZE_Y * TILE_SIZE_Y)
@@ -202,11 +446,8 @@ namespace processing
 #pragma unroll TILE_SIZE_Y
 				for (int k = 0; k < TILE_SIZE_Y; k++)
 				{
-#pragma unroll TILE_SIZE_X
-					for (int l = 0; l < TILE_SIZE_X; l++)
-					{
-						shared[j + k][i + l] = inputImage[IMAD(positionShared.y + j + k, inputPitch, positionShared.x + i + l)];
-					}
+					
+					*((float3 *)&shared[j + k][i]) = *(float3 *)(inputImage + IMAD(positionShared.y + j + k, inputPitch, positionShared.x + i));
 				}
 
 			}
@@ -247,34 +488,33 @@ namespace processing
 				}
 			}
 
-#pragma unroll TILE_SIZE_Y
-			for (int k = 0; k < TILE_SIZE_Y; k++)
+			if (MAKEZEROS)
 			{
-#pragma unroll TILE_SIZE_X
-				for (int l = 0; l < TILE_SIZE_X; l++)
-				{
-					
-					static_if<MAKEZEROS>([outputImage, absoluteImagePosition, outputPitch, &results,k,l, TILE_SIZE_Y = TILE_SIZE_Y](auto f) {
-						outputImage[IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x + l)] = results[k * TILE_SIZE_Y + l];
-						//static_assert(0 > 1, "false");
-					}).else_([outputImage, absoluteImagePosition, outputPitch, &results, k,l, TILE_SIZE_Y = TILE_SIZE_Y](auto f) {
-						outputImage[IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x + l)] += results[k * TILE_SIZE_Y + l];
-						//static_assert(0 > 1, "false") 
-					});
-
-					/*
-					if (MAKEZEROS)
-					{
-						outputImage[IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x + l)] = results[k * TILE_SIZE_Y + l];
-					}
-					else
-					{
-						outputImage[IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x + l)] += results[k * TILE_SIZE_Y + l];
-					}
-					*/
-				}
+				*((float3 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x))) = *((float3*)&results[0]);
+				*((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x))) = *((float3*)&results[3]);
+				*((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 2, outputPitch, absoluteImagePosition.x))) = *((float3*)&results[6]);
 			}
-			__syncthreads();
+			else
+			{
+				float3 fromGlobal = *((float3 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x)));
+				fromGlobal.x += results[0];
+				fromGlobal.y += results[1];
+				fromGlobal.z += results[2];
+				*((float3 *)(outputImage + IMAD(absoluteImagePosition.y, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+				fromGlobal = *((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x)));
+				fromGlobal.x += results[3];
+				fromGlobal.y += results[4];
+				fromGlobal.z += results[5];
+				*((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 1, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+				fromGlobal = *((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 2, outputPitch, absoluteImagePosition.x)));
+				fromGlobal.x += results[6];
+				fromGlobal.y += results[7];
+				fromGlobal.z += results[8];
+				*((float3 *)(outputImage + IMAD(absoluteImagePosition.y + 2, outputPitch, absoluteImagePosition.x))) = fromGlobal;
+			}
+			static_if<SYNC>([](auto f) {
+				__syncthreads();
+			});
 		}
 	}
 
@@ -296,9 +536,8 @@ namespace processing
 
 		condition_variable conditionVariable_;
 
-		ThreadPool threadPool(2);
 
-		void printJob(Job& job) 
+		void printJob(Job& job)
 		{
 			cout << "-------------------------------------" << endl;
 			cout << "Filter count: " << job.filterCount_ << endl;
@@ -327,7 +566,7 @@ namespace processing
 			cudaMemcpyToSymbolAsync(PITCHED_MEMORY_BUFFER_DEVICE.memory_, PITCHED_MEMORY_BUFFER_HOST.memory_, sizeof(float**) * PITCHED_MEMORY_BUFFER_SIZE_OUTPUT, 0, cudaMemcpyHostToDevice, stream.stream_);
 
 			vector<float *> inputImagesMemory = MemoryPoolPitched::getMemoryPoolPitchedForInput().getMemory();
-			
+
 			for (float * memory : inputImagesMemory)
 			{
 				inputImages_.push(memory);
@@ -335,7 +574,7 @@ namespace processing
 			/*
 			for (size_t i = 0; i < inputImagesMemory.size(); i++)
 			{
-				cout << i << ": " << inputImagesMemory[i] << endl;
+			cout << i << ": " << inputImagesMemory[i] << endl;
 			}
 			*/
 			pitchInput_ = MemoryPoolPitched::getMemoryPoolPitchedForInput().getPitch();
@@ -347,19 +586,38 @@ namespace processing
 
 			const int imageSize = images.size();
 			const int groupSize = filters.size();
-			constexpr int OUTPUT_SIZE = PITCHED_MEMORY_BUFFER_SIZE_OUTPUT;
+
 			constexpr int INPUT_BATCH_SIZE = PITCHED_MEMORY_BUFFER_SIZE_INPUT;
 
+
+			int batchSize = 10;
+			/*
+			if (groupSize <= 8)
+			{
+				batchSize = 4;
+			}
+			else if (groupSize <= 10)
+			{
+				batchSize = 5;
+			}
+			else
+			{
+				batchSize = 10;
+			}
+			*/
+			batchSize = std::min(batchSize, PITCHED_MEMORY_BUFFER_SIZE_OUTPUT / 2);
+
+
 			vector<vector<shared_ptr<Filter>>> filtersCopy(filters);
-			std::sort(filtersCopy.begin(), filtersCopy.end(), [](vector<shared_ptr<Filter>>& first, vector<shared_ptr<Filter>> second) 
+			std::sort(filtersCopy.begin(), filtersCopy.end(), [](vector<shared_ptr<Filter>>& first, vector<shared_ptr<Filter>> second)
 			{
 				return first[0]->getWidth() < second[0]->getWidth();
 			});
 			vector<BatchGroup> filterGroups;
-			for (int filterGroupIndex = 0; filterGroupIndex < groupSize; filterGroupIndex += OUTPUT_SIZE)
+			for (int filterGroupIndex = 0; filterGroupIndex < groupSize; filterGroupIndex += batchSize)
 			{
 				int startOfGroup = filterGroupIndex;
-				int endOfGroup = std::min(filterGroupIndex + OUTPUT_SIZE - 1, groupSize - 1);
+				int endOfGroup = std::min(filterGroupIndex + batchSize - 1, groupSize - 1);
 				int totalGroupSize = endOfGroup - startOfGroup + 1;
 				BatchGroup group;
 				group.filterCount_ = totalGroupSize;
@@ -383,102 +641,86 @@ namespace processing
 				}
 				filterGroups.push_back(std::move(group));
 			}
-
-
-			vector<float *> deviceInputImagesForFilterGroup(imageSize, nullptr);
-			for (int i = 0; i < imageSize; i += INPUT_BATCH_SIZE)
+			for (BatchGroup& group : filterGroups)
 			{
-				int startOfImage = i;
-				int endOfImage = std::min(i + INPUT_BATCH_SIZE - 1, imageSize - 1);
-				int totalUsedImages = endOfImage - startOfImage + 1;
-				
-				
-				for (BatchGroup& group : filterGroups)
+				int bufferOutputStart = PITCHED_MEMORY_BUFFER_HOST.acquire(group.filterCount_);
+				for (int imageIndex = 0; imageIndex < imageSize; ++imageIndex)
 				{
-					int bufferOutputStart = PITCHED_MEMORY_BUFFER_HOST.acquire(group.filterCount_);
-					for (int imageIndex = startOfImage; imageIndex <= endOfImage; ++imageIndex)
+					shared_ptr<ImageFactory>& image = images[imageIndex];
+					float * hostGrayImage = image->getInputGrayPointerFloat();
+					unique_lock<mutex> lock(mutexInputImages_);
+					while (inputImages_.empty())
 					{
-					
-						if (deviceInputImagesForFilterGroup[imageIndex] == nullptr) 
-						{
-							shared_ptr<ImageFactory>& image = images[imageIndex];
-							float * hostGrayImage = image->getInputGrayPointerFloat();
-							unique_lock<mutex> lock(mutexInputImages_);
-							while (inputImages_.empty())
-							{
-								conditionVariable_.wait(lock);
-							}
-							float * deviceGrayImageIn = inputImages_.top();
-							inputImages_.pop();
-							lock.unlock();
-							deviceInputImagesForFilterGroup[imageIndex] = deviceGrayImageIn;
-							checkCudaErrors(cudaMemcpy2DAsync(deviceGrayImageIn, pitchInput_, hostGrayImage, numCols * sizeof(float), numCols * sizeof(float), numRows, cudaMemcpyHostToDevice, stream.stream_));
-							checkCudaErrors(cudaStreamSynchronize(stream.stream_));
-						}
-						int filterGroupIndexStart = group.filterStart_;
-						int localBufferOutputStart = bufferOutputStart;
-						vector<Job> jobs;
-						for (BatchGroupInfo& info : group.filterInfos_)
-						{
-							Job job;
-							job.numCols = numCols;
-							job.numRows = numRows;
-							job.inputImage_ = deviceInputImagesForFilterGroup[imageIndex];
-							job.filterCount_ = info.filterCount_;
-							job.filterWidth_ = info.filterWidth_;
-							job.bufferStart_ = localBufferOutputStart;
-							localBufferOutputStart += info.filterCount_;
-							
-							int sizeOfFilter = job.filterWidth_* job.filterWidth_;
-							shared_ptr<float> memoryForFilters = shared_ptr<float>(new float[sizeOfFilter * job.filterCount_], [](float * ptr) { delete[] ptr; });
-							for (int offset = 0, index = filterGroupIndexStart; index < filterGroupIndexStart + job.filterCount_; ++index, offset += sizeOfFilter)
-							{
-								std::copy(filtersCopy[index][imageIndex]->getFilter(), filtersCopy[index][imageIndex]->getFilter() + sizeOfFilter, memoryForFilters.get() + offset);
-							}
-							job.filterGroupStartIndex = filterGroupIndexStart;
-							filterGroupIndexStart += job.filterCount_;
-							job.filters_ = memoryForFilters;
-							
-
-							if (imageIndex == startOfImage) // prvy prvok, nuluje buffer output
-							{
-								job.makeZeros = true;
-							}
-							if (&group == &filterGroups[filterGroups.size() - 1]) // posledna grupa, vracia vstupnz obrayok
-							{
-								job.returnInputImage_ = true;
-							}
-							if (imageIndex == endOfImage)
-							{
-								job.goToPostprocess = true;
-							}
-							jobs.push_back(std::move(job));
-						}
-						mutexJobInProcess_.lock();
-						for (int j = 0; j < jobs.size(); j++)
-						{
-							if (imageIndex == imageSize - 1 && j == jobs.size() - 1 && &group == &filterGroups[filterGroups.size() - 1])
-							{
-								jobs[j].finish_ = true;
-							}
-							//printJob(jobs[j]);
-							jobsInProcess_.push(std::move(jobs[j]));
-						}
-						
-						preprocessPrepared_ = true;
-						mutexJobInProcess_.unlock();
-						conditionVariable_.notify_all();
+						conditionVariable_.wait(lock);
 					}
-				}
+					float * deviceGrayImageIn = inputImages_.top();
+					inputImages_.pop();
+					lock.unlock();
+					checkCudaErrors(cudaMemcpy2DAsync(deviceGrayImageIn, pitchInput_, hostGrayImage, numCols * sizeof(float), numCols * sizeof(float), numRows, cudaMemcpyHostToDevice, stream.stream_));
+					checkCudaErrors(cudaStreamSynchronize(stream.stream_));
+					int filterGroupIndexStart = group.filterStart_;
+					int localBufferOutputStart = bufferOutputStart;
+					vector<Job> jobs;
+					for (BatchGroupInfo& info : group.filterInfos_)
+					{
+						Job job;
+						job.numCols = numCols;
+						job.numRows = numRows;
+						job.inputImage_ = deviceGrayImageIn;
+						job.filterCount_ = info.filterCount_;
+						job.filterWidth_ = info.filterWidth_;
+						job.bufferStart_ = localBufferOutputStart;
+						localBufferOutputStart += info.filterCount_;
 
+						int sizeOfFilter = job.filterWidth_* job.filterWidth_;
+						shared_ptr<float> memoryForFilters = shared_ptr<float>(new float[sizeOfFilter * job.filterCount_], [](float * ptr) { delete[] ptr; });
+						for (int offset = 0, index = filterGroupIndexStart; index < filterGroupIndexStart + job.filterCount_; ++index, offset += sizeOfFilter)
+						{
+							std::copy(filtersCopy[index][imageIndex]->getFilter(), filtersCopy[index][imageIndex]->getFilter() + sizeOfFilter, memoryForFilters.get() + offset);
+						}
+						job.filterGroupStartIndex = filterGroupIndexStart;
+						filterGroupIndexStart += job.filterCount_;
+						job.filters_ = memoryForFilters;
+
+
+						if (imageIndex == 0) // prvy prvok, nuluje buffer output
+						{
+							job.makeZeros = true;
+						}
+						if (&info == &group.filterInfos_[group.filterInfos_.size() - 1]) // posledna grupa, vracia vstupnz obrayok
+						{
+							job.returnInputImage_ = true;
+						}
+						if (imageIndex == imageSize - 1) // tento posiela do postprocessingu
+						{
+							job.goToPostprocess = true;
+						}
+						jobs.push_back(std::move(job));
+					}
+					mutexJobInProcess_.lock();
+					for (int j = 0; j < jobs.size(); j++)
+					{
+						if (imageIndex == imageSize - 1 && j == jobs.size() - 1 && &group == &filterGroups[filterGroups.size() - 1])
+						{
+							jobs[j].finish_ = true;
+						}
+						//printJob(jobs[j]);
+						jobsInProcess_.push(std::move(jobs[j]));
+					}
+
+					preprocessPrepared_ = true;
+					mutexJobInProcess_.unlock();
+					conditionVariable_.notify_all();
+				}
 			}
+			//cout << "Koniec preprocessing" << endl;
 		}
 
 		void process(CudaStream& stream)
 		{
 			queue<Job> jobs;
 			bool end = false;
-			while (end == false) 
+			while (end == false)
 			{
 				unique_lock<mutex> lock(mutexJobInProcess_);
 				while (preprocessPrepared_ == false)
@@ -496,28 +738,28 @@ namespace processing
 				}
 				preprocessPrepared_ = false;
 				lock.unlock();
-				while (jobs.size()) 
+				while (jobs.size())
 				{
 					Job job = std::move(jobs.front());
 					jobs.pop();
 
 					switch (job.filterWidth_)
 					{
-						CONVOLUTIONSHAREDMULTIFULLBLOCK(1, 32, 16)
-						CONVOLUTIONSHAREDMULTIFULLBLOCK(3,32,16)
-						CONVOLUTIONSHAREDMULTIFULLBLOCK(5, 32, 16)
-						//CONVOLUTIONSHAREDMULTIFULLBLOCK(7, 32, 16)
-						//CONVOLUTIONSHAREDMULTIFULLBLOCK(9, 32, 16)
-						//CONVOLUTIONSHAREDMULTIFULLBLOCK(11, 32, 16)
-						//CONVOLUTIONSHAREDMULTIFULLBLOCK(13, 32, 16)
-						//CONVOLUTIONSHAREDMULTIFULLBLOCK(15, 32, 16)
+						CONVOLUTIONSHAREDTHREADSSMALLMULTI(1,32,16,32,16)
+						CONVOLUTIONSHAREDTHREADSSMALLMULTI(3, 32, 16, 31, 15)
+						CONVOLUTIONSHAREDTHREADSSMALLMULTI(5, 32, 16, 30, 14)
+						CONVOLUTIONSHAREDTHREADSSMALLMULTI(7, 32, 32, 29, 29)
+						CONVOLUTIONSHAREDTHREADSBIGMULTI(9, 32, 16, 29, 13)
+						CONVOLUTIONSHAREDTHREADSBIGMULTI(11, 32, 16, 28, 12)
+						CONVOLUTIONSHAREDMULTIFULLBLOCK(13, 32, 6)
+						CONVOLUTIONSHAREDMULTIFULLBLOCK(15, 32, 8)
 					default:
 						std::cerr << "Filter with width: " << job.filterWidth_ << " not supported!" << endl;
 						break;
 					}
 
 					checkCudaErrors(cudaStreamSynchronize(stream.stream_));
-					if (job.goToPostprocess) 
+					if (job.goToPostprocess)
 					{
 						mutexProcessPostProcess_.lock();
 						jobsInPostProcess_.push(job);
@@ -531,7 +773,7 @@ namespace processing
 						mutexInputImages_.unlock();
 						conditionVariable_.notify_all();
 					}
-					if (job.finish_) 
+					if (job.finish_)
 					{
 						end = true;
 					}
@@ -546,42 +788,7 @@ namespace processing
 			queue<Job> jobs;
 			results.resize(filterGroupSize);
 
-			shared_ptr<float> bufferForCopiing[] = { MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory(), MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory() };
-			int indexInBuffer = 0;
 			const size_t pixels = numberOfCols * numberOfRows;
-			std::fill(results.begin(), results.end(), nullptr);
-			static mutex localMutexResults;
-			static condition_variable localConditionVariable;
-			thread prepareResults([localMutexResults = std::ref(localMutexResults), localConditionVariable = std::ref(localConditionVariable), &results, pixels, filterGroupSize]()
-			{
-				for (size_t i = 0; i < filterGroupSize; i++)
-				{
-					//results[i] = makeArray<float>(pixels);
-					unique_lock<mutex> lock(localMutexResults.get());
-					results[i] = MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory();
-					std::fill(results[i].get(), results[i].get() + pixels, 0);
-					lock.unlock();
-					localConditionVariable.get().notify_all();
-					/*
-					double difference = pixels;
-					difference = std::ceil(difference / threadPool.getThreadCount());
-					size_t leftBorder = 0;
-					size_t rightBorder = size_t(difference);
-					for (uint j = 0; j < threadPool.getThreadCount(); ++j)
-					{
-					threadPool.addTask([leftBorder, rightBorder, result = results[i].get()]()
-					{
-					std::fill(result + leftBorder, result + rightBorder, 0);
-					});
-					leftBorder = rightBorder;
-					rightBorder = std::min(rightBorder + size_t(difference), size_t(pixels));
-					}
-					*/
-				}
-			});
-
-			
-			//threadPool.finishAll();
 			while (end == false)
 			{
 				unique_lock<mutex> lock(mutexProcessPostProcess_);
@@ -596,43 +803,18 @@ namespace processing
 				{
 					job = std::move(jobs.front());
 					jobs.pop();
-					
+
 					int xlen = job.numCols - (job.filterWidth_ - 1);
 					int ylen = job.numRows - (job.filterWidth_ - 1);
 					const size_t pixels = xlen * ylen;
 					for (int i = 0; i < job.filterCount_; i++)
 					{
 
-						checkCudaErrors(cudaMemcpy2DAsync(bufferForCopiing[indexInBuffer].get(), xlen * sizeof(float), PITCHED_MEMORY_BUFFER_HOST.memory_[(job.bufferStart_ + i) % PITCHED_MEMORY_BUFFER_SIZE_OUTPUT], pitchOutput_, xlen * sizeof(float), ylen, cudaMemcpyDeviceToHost, stream.stream_));
-
-						checkCudaErrors(cudaStreamSynchronize(stream.stream_));
-
-						PITCHED_MEMORY_BUFFER_HOST.release(1);
 						int filterGroupIndex = job.filterGroupStartIndex + i;
-						//std::transform(results[filterGroupIndex].get(), results[filterGroupIndex].get() + pixels, bufferForCopiing.get(), results[filterGroupIndex].get(), std::plus<float>());
-
-						double difference = pixels;
-						difference = std::ceil(difference / threadPool.getThreadCount());
-						size_t leftBorder = 0;
-						size_t rightBorder = size_t(difference);
-						unique_lock<mutex> lock(localMutexResults);
-						while (results[filterGroupIndex] == nullptr)
-						{
-							localConditionVariable.wait(lock);
-						}
-						lock.unlock();
-						threadPool.finishAll();
-						for (uint i = 0; i < threadPool.getThreadCount(); ++i)
-						{
-							threadPool.addTask([leftBorder, rightBorder, dst = results[filterGroupIndex].get(), src = bufferForCopiing[indexInBuffer].get()]()
-							{
-								std::transform(dst + leftBorder, dst + rightBorder, src + leftBorder, dst + leftBorder, std::plus<float>());
-							});
-							leftBorder = rightBorder;
-							rightBorder = std::min(rightBorder + size_t(difference), size_t(pixels));
-						}
-						++indexInBuffer;
-						indexInBuffer %= 2;
+						results[filterGroupIndex] = MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory(pixels, false);
+						checkCudaErrors(cudaMemcpy2DAsync(results[filterGroupIndex].get(), xlen * sizeof(float), PITCHED_MEMORY_BUFFER_HOST.memory_[(job.bufferStart_ + i) % PITCHED_MEMORY_BUFFER_SIZE_OUTPUT], pitchOutput_, xlen * sizeof(float), ylen, cudaMemcpyDeviceToHost, stream.stream_));
+						checkCudaErrors(cudaStreamSynchronize(stream.stream_));
+						PITCHED_MEMORY_BUFFER_HOST.release(1);
 					}
 					if (job.finish_)
 					{
@@ -640,33 +822,21 @@ namespace processing
 					}
 				}
 			}
-			prepareResults.join();
 		}
 	}
-	
 
-	KernelSharedThreadsMulti::KernelSharedThreadsMulti()
+	KernelSharedThreadsMulti::KernelSharedThreadsMulti() : MultiRunnable()
 	{
-	}
-
-	void KernelSharedThreadsMulti::run(ImageFactory & image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
-	{
-		throw std::runtime_error("Simple convolution not supported");
 	}
 
 	void KernelSharedThreadsMulti::run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results)
 	{
-		pair<bool, string> checking = controlInputForMultiConvolution(images, filters);
-		if (checking.first == false)
-		{
-			cerr << checking.second << endl;
-			return;
-		}
 		using namespace KernelSharedThreadsMultiNS;
+
 		
-		thread threadProcessing(process, std::ref(streams[1]));
 		thread threadPreprocessing(preprocess, std::ref(streams[0]), std::ref(images), std::ref(filters));
-		thread threadPostprocessing(postprocess, std::ref(streams[2]), std::ref(results), filters.size(), images[0]->getNumCols() , images[0]->getNumRows());
+		thread threadProcessing(process, std::ref(streams[1]));
+		thread threadPostprocessing(postprocess, std::ref(streams[2]), std::ref(results), filters.size(), images[0]->getNumCols(), images[0]->getNumRows());
 		threadPreprocessing.join();
 		threadProcessing.join();
 		threadPostprocessing.join();
