@@ -37,8 +37,8 @@ CONVOLUTIONSHARED(13, 32, 6) // 3 x 3 jedine pouzitelne
 CONVOLUTIONSHARED(15, 32, 8) // 3 x 3 jedine pouzitelne
 */
 
-#define TILE_SIZE_X 3
-#define TILE_SIZE_Y 3
+#define TILE_SIZE_X 2
+#define TILE_SIZE_Y 2
 
 #define CONVOLUTIONSHARED(FILTER_W, BLOCK_X, BLOCK_Y)\
 case FILTER_W:\
@@ -48,14 +48,13 @@ case FILTER_W:\
 	const int BLOCK_SIZE_Y = BLOCK_Y;\
 	const int FILTER_WIDTH = FILTER_W;\
 	const dim3 blockSize(BLOCK_SIZE_X, BLOCK_SIZE_Y);\
-	const dim3 gridSize((image.getNumCols() / TILE_SIZE_X + BLOCK_SIZE_X - 1) / BLOCK_SIZE_X, (image.getNumRows() / TILE_SIZE_Y + BLOCK_SIZE_Y - 1) / BLOCK_SIZE_Y, 1);\
+	const dim3 gridSize((image->getNumCols() / TILE_SIZE_X + BLOCK_SIZE_X - 1) / BLOCK_SIZE_X, (image->getNumRows() / TILE_SIZE_Y + BLOCK_SIZE_Y - 1) / BLOCK_SIZE_Y, 1);\
 	convolutionGPUSharedFullBlock<FILTER_WIDTH, BLOCK_SIZE_X,BLOCK_SIZE_Y> << <gridSize, blockSize >> >(deviceGrayImageIn, deviceGrayImageOut, inputPitch / sizeof(float), outputPitch / sizeof(float));\
-	int xlen = image.getNumCols() - (FILTER_WIDTH - 1); \
-	int ylen = image.getNumRows() - (FILTER_WIDTH - 1); \
-	shared_ptr<float> resultCPU = makeArray<float>(xlen*ylen); \
-	checkCudaErrors(cudaHostRegister(resultCPU.get(), xlen*ylen * sizeof(float), cudaHostRegisterPortable)); \
+	int xlen = image->getNumCols() - (FILTER_WIDTH - 1); \
+	int ylen = image->getNumRows() - (FILTER_WIDTH - 1); \
+	shared_ptr<float> resultCPU = allocateCudaHostSafe<float>(xlen*ylen); \
 	checkCudaErrors(cudaMemcpy2D(resultCPU.get(), xlen * sizeof(float), deviceGrayImageOut, outputPitch, xlen * sizeof(float), ylen, cudaMemcpyDeviceToHost)); \
-	checkCudaErrors(cudaHostUnregister(resultCPU.get())); \
+	checkCudaErrors(cudaDeviceSynchronize()); \
 	results.push_back(resultCPU); \
 	break;\
 }
@@ -134,60 +133,55 @@ namespace processing
 	}
 
 	
-	KernelSharedMemoryFullBlock::KernelSharedMemoryFullBlock() 
+	KernelSharedMemoryFullBlock::KernelSharedMemoryFullBlock() : SimpleRunnable(true)
 	{}
 
-	
-	void KernelSharedMemoryFullBlock::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
+
+	void KernelSharedMemoryFullBlock::run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
-		
-		const short MAX_BLOCK_SIZE_X = 32;
-		const short MAX_BLOCK_SIZE_Y = 32;
-
-		const float* hostGrayImage = image.getInputGrayPointerFloat();
-
-		float* deviceGrayImageOut = 0;
-		size_t outputPitch = 0;
-		checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageOut, &outputPitch, (image.getNumCols() + MAX_BLOCK_SIZE_X * TILE_SIZE_X * 10) * sizeof(float), (image.getNumRows() + MAX_BLOCK_SIZE_Y * TILE_SIZE_Y * 10)));
-		// memory allocation
-		size_t inputPitch = 0;
-		float* deviceGrayImageIn;
-		checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageIn, &inputPitch, (image.getNumCols() + MAX_BLOCK_SIZE_X * TILE_SIZE_X * 10) * sizeof(float), image.getNumRows() + MAX_BLOCK_SIZE_Y* TILE_SIZE_Y * 10));
-		checkCudaErrors(cudaDeviceSynchronize());
-		checkCudaErrors(cudaMemcpy2D(deviceGrayImageIn, inputPitch, hostGrayImage, image.getNumCols() * sizeof(float), image.getNumCols() * sizeof(float), image.getNumRows(), cudaMemcpyHostToDevice));
-
-
-		for (auto& filter : filters)
+		const short MAX_BLOCK_SIZE_X = TILE_SIZE_X * 32;
+		const short MAX_BLOCK_SIZE_Y = TILE_SIZE_Y * 32;
+		for (auto& image : images)
 		{
-			switch (filter->getWidth())
+			const float* hostGrayImage = image->getInputGrayPointerFloat();
+
+			float* deviceGrayImageOut = 0;
+			size_t outputPitch = 0;
+			checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageOut, &outputPitch, (image->getNumCols() + MAX_BLOCK_SIZE_X * TILE_SIZE_X) * sizeof(float), (image->getNumRows() + MAX_BLOCK_SIZE_Y * TILE_SIZE_Y)));
+			// memory allocation
+			size_t inputPitch = 0;
+			float* deviceGrayImageIn;
+			checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageIn, &inputPitch, (image->getNumCols() + MAX_BLOCK_SIZE_X * TILE_SIZE_X) * sizeof(float), image->getNumRows() + MAX_BLOCK_SIZE_Y* TILE_SIZE_Y));
+			checkCudaErrors(cudaDeviceSynchronize());
+			checkCudaErrors(cudaMemcpy2D(deviceGrayImageIn, inputPitch, hostGrayImage, image->getNumCols() * sizeof(float), image->getNumCols() * sizeof(float), image->getNumRows(), cudaMemcpyHostToDevice));
+
+
+			for (auto& filter : filters)
 			{
-			
-			//CONVOLUTIONSHARED(1, 32,4)
-			//CONVOLUTIONSHARED(3, 32, 4)
-			//CONVOLUTIONSHARED(5, 32,4) 
-			//CONVOLUTIONSHARED(7, 32, 4) // najlepsie CONVOLUTIONSHARED(7, 32, 4) 2x2
-			
-				CONVOLUTIONSHARED(11, 32, 7)
-			CONVOLUTIONSHARED(13, 32, 6) 
-			CONVOLUTIONSHARED(15, 32, 8) 
-			
-				/*
-				CONVOLUTIONSHARED(1, 32, 16)
-				CONVOLUTIONSHARED(3, 32, 16)
-				CONVOLUTIONSHARED(5, 32, 16)
-				CONVOLUTIONSHARED(7, 32, 16)
-				CONVOLUTIONSHARED(9, 32, 16)
-				CONVOLUTIONSHARED(11, 32, 16)
-				CONVOLUTIONSHARED(13, 32, 16)
-				CONVOLUTIONSHARED(15, 32, 16)
-				*/
-			default:
-				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
-				break;
+				switch (filter->getWidth())
+				{
+						CONVOLUTIONSHARED(1, 32, 4)
+						CONVOLUTIONSHARED(3, 32, 4)
+						CONVOLUTIONSHARED(5, 32, 4)
+						CONVOLUTIONSHARED(7, 32, 4) // najlepsie CONVOLUTIONSHARED(7, 32, 4) 2x2
+						CONVOLUTIONSHARED(9, 32, 4) // najlepsie CONVOLUTIONSHARED(9, 32, 4) 2x2
+						CONVOLUTIONSHARED(11, 32, 8) // najlepsie CONVOLUTIONSHARED(11, 32, 8) 2x2
+						CONVOLUTIONSHARED(13, 32, 10) // najlepsie CONVOLUTIONSHARED(11, 32, 8) 2x2
+						CONVOLUTIONSHARED(15, 32, 10) // najlepsie CONVOLUTIONSHARED(11, 32, 8) 2x2
+					  /*
+						  3X3
+						  CONVOLUTIONSHARED(11, 32, 7)
+						  CONVOLUTIONSHARED(13, 32, 6)
+						  CONVOLUTIONSHARED(15, 32, 8)
+					 */
+				default:
+					std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
+					break;
+				}
 			}
+			checkCudaErrors(cudaFree(deviceGrayImageIn));
+			checkCudaErrors(cudaFree(deviceGrayImageOut));
 		}
-		checkCudaErrors(cudaFree(deviceGrayImageIn));
-		checkCudaErrors(cudaFree(deviceGrayImageOut));
 	}
 
 }

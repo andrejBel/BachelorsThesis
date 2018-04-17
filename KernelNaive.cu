@@ -30,7 +30,7 @@ namespace processing
 case FILTERWIDTH:\
 {\
 	float * ptr =  (deviceFilters.get() + offset);\
-	convolutionGPUNaive << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), FILTERWIDTH);\
+	convolutionGPUNaive << <gridSize, blockSize >> >(ptr, image->getNumRows(), image->getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), FILTERWIDTH);\
 	break;\
 }
 
@@ -63,50 +63,52 @@ case FILTERWIDTH:\
 	}
 
 
-	KernelNaive::KernelNaive()
+	KernelNaive::KernelNaive() : SimpleRunnable(false)
 	{
 	}
 
-
-	void KernelNaive::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelNaive::run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
 		shared_ptr<float> deviceFilters = makeDeviceFilters(filters);
-		// filter allocation and initialization
-		shared_ptr<float> deviceGrayImageOut = allocateMemmoryDevice<float>(image.getNumPixels());
-
-		const float * hostGrayImage = image.getInputGrayPointerFloat();
-
-		shared_ptr<float> deviceGrayImageIn = allocateMemmoryDevice<float>(image.getNumPixels());
-		checkCudaErrors(cudaMemcpy(deviceGrayImageIn.get(), hostGrayImage, image.getNumPixels() * sizeof(float), cudaMemcpyHostToDevice));
-		// memory allocation
-		const uint numberOfThreadsInBlock = 16;
-		const dim3 blockSize(numberOfThreadsInBlock, numberOfThreadsInBlock);
-		const dim3 gridSize((image.getNumCols() + blockSize.x - 1) / blockSize.x, (image.getNumRows() + blockSize.y - 1) / blockSize.y, 1);
-		// kernels parameters
-		uint offset(0);
-		for (auto& filter : filters)
+		for (shared_ptr<ImageFactory>& image: images)
 		{
-			switch (filter->getWidth())
+			// filter allocation and initialization
+			const size_t pixels = image->getNumPixels();
+			shared_ptr<float> deviceGrayImageOut = allocateMemmoryDevice<float>(pixels);
+			const float * hostGrayImage = image->getInputGrayPointerFloat();
+
+			shared_ptr<float> deviceGrayImageIn = allocateMemmoryDevice<float>(pixels);
+			checkCudaErrors(cudaMemcpy(deviceGrayImageIn.get(), hostGrayImage, pixels * sizeof(float), cudaMemcpyHostToDevice));
+			// memory allocation
+			const uint numberOfThreadsInBlock = 16;
+			const dim3 blockSize(numberOfThreadsInBlock, numberOfThreadsInBlock);
+			const dim3 gridSize((image->getNumCols() + blockSize.x - 1) / blockSize.x, (image->getNumRows() + blockSize.y - 1) / blockSize.y, 1);
+			// kernels parameters
+			uint offset(0);
+			for (auto& filter : filters)
 			{
-				CONVOLUTIONSLOWNAIVE(1)
-				CONVOLUTIONSLOWNAIVE(3)
-				CONVOLUTIONSLOWNAIVE(5)
-				CONVOLUTIONSLOWNAIVE(7)
-				CONVOLUTIONSLOWNAIVE(9)
-				CONVOLUTIONSLOWNAIVE(11)
-				CONVOLUTIONSLOWNAIVE(13)
-				CONVOLUTIONSLOWNAIVE(15)
-			default:
-				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
-				break;
+				switch (filter->getWidth())
+				{
+					CONVOLUTIONSLOWNAIVE(1)
+						CONVOLUTIONSLOWNAIVE(3)
+						CONVOLUTIONSLOWNAIVE(5)
+						CONVOLUTIONSLOWNAIVE(7)
+						CONVOLUTIONSLOWNAIVE(9)
+						CONVOLUTIONSLOWNAIVE(11)
+						CONVOLUTIONSLOWNAIVE(13)
+						CONVOLUTIONSLOWNAIVE(15)
+				default:
+					std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
+					break;
+				}
+				offset += filter->getSize();
+				shared_ptr<float> resultCPU = makeArray<float>(pixels);
+				checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), pixels * sizeof(float), cudaMemcpyDeviceToHost));
+				checkCudaErrors(cudaDeviceSynchronize());
+				results.push_back(resultCPU);
 			}
-			offset += filter->getSize();
-			shared_ptr<float> resultCPU = makeArray<float>(image.getNumPixels());
-			checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(float), cudaMemcpyDeviceToHost));
-			results.push_back(resultCPU);
 			checkCudaErrors(cudaDeviceSynchronize());
 		}
-		checkCudaErrors(cudaDeviceSynchronize());
 	}
 
 }

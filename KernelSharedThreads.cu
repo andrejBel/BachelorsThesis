@@ -401,9 +401,9 @@ namespace processing
 	static const vector<int> jobLimits =
 	{
 		0, //0
-		PITCHED_MEMORY_BUFFER_SIZE_OUTPUT - 1,//1
+		PITCHED_MEMORY_BUFFER_SIZE_OUTPUT > 10 ? 10 : PITCHED_MEMORY_BUFFER_SIZE_OUTPUT - 1,//1
 		0,//2
-		PITCHED_MEMORY_BUFFER_SIZE_OUTPUT - 1,//3
+		PITCHED_MEMORY_BUFFER_SIZE_OUTPUT > 10 ? 10 : PITCHED_MEMORY_BUFFER_SIZE_OUTPUT - 1,//3
 		0,//4
 		6,//PITCHED_MEMORY_BUFFER_SIZE_OUTPUT,//5
 		0,//6
@@ -497,6 +497,7 @@ namespace processing
 			inputImages_.pop();
 			lock.unlock();
 			checkCudaErrors(cudaMemcpy2DAsync(deviceGrayImageIn, pitchInput_, hostGrayImage, numberOfColumns * sizeof(float), numberOfColumns * sizeof(float), numberOfRows, cudaMemcpyHostToDevice, stream.stream_));
+			checkCudaErrors(cudaStreamSynchronize(stream.stream_));
 			vector<Job> jobs;
 			for (FilterBox filters : filtersHostMemories)
 			{
@@ -522,7 +523,6 @@ namespace processing
 				}
 				jobs_.push(jobs[j]);
 			}
-			checkCudaErrors(cudaStreamSynchronize(stream.stream_));
 			preprocessPrepared_ = true;
 			mutexJobs_.unlock();
 			conditionVariable_.notify_all();
@@ -615,7 +615,7 @@ namespace processing
 
 				for (int i = 0; i < job.filterCount_; i++)
 				{
-					shared_ptr<float> resultCPU = MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory();
+					shared_ptr<float> resultCPU = MemoryPoolPinned::getMemoryPoolPinnedForOutput().acquireMemory(xlen*ylen, false);
 					checkCudaErrors(cudaMemcpy2DAsync(resultCPU.get(), xlen * sizeof(float), PITCHED_MEMORY_BUFFER_HOST.memory_[(job.bufferStart_ + i) % PITCHED_MEMORY_BUFFER_SIZE_OUTPUT], pitchOutput_, xlen * sizeof(float), ylen, cudaMemcpyDeviceToHost, stream.stream_));
 					checkCudaErrors(cudaStreamSynchronize(stream.stream_));
 					PITCHED_MEMORY_BUFFER_HOST.release(1);
@@ -634,17 +634,11 @@ namespace processing
 
 
 
-	KernelSharedThreads::KernelSharedThreads()
+	KernelSharedThreads::KernelSharedThreads() : SimpleRunnable(true)
 	{}
 
-
-	void KernelSharedThreads::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelSharedThreads::run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
-
-		vector<shared_ptr<ImageFactory>> images;
-		images.push_back(shared_ptr<ImageFactory>(&image, [](ImageFactory * ptr) {}));
-
-
 		thread threadPreprocessing(preprocess, std::ref(streams[0]), std::ref(images), std::ref(filters));
 		thread threadProcessing(process, std::ref(streams[1]));
 		thread threadPostprocessing(postprocess, std::ref(streams[2]), std::ref(results));
@@ -652,8 +646,6 @@ namespace processing
 		threadPreprocessing.join();
 		threadProcessing.join();
 		threadPostprocessing.join();
-
-
 	}
 
 }

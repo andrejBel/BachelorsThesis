@@ -40,14 +40,13 @@
 
 namespace processing {
 
-	KernelCudnn::KernelCudnn()
+	KernelCudnn::KernelCudnn() : SimpleRunnable(true)
 	{
 	}
 
-
-
-	void KernelCudnn::run(ImageFactory & image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelCudnn::run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
+		ImageFactory image("");
 		shared_ptr<float> deviceFilters = makeDeviceFilters(filters);
 
 		// filter allocation and initialization
@@ -78,22 +77,22 @@ namespace processing {
 		cudnnTensorDescriptor_t output_descriptor;
 		checkCUDNN(cudnnCreateTensorDescriptor(&output_descriptor));
 		checkCUDNN(cudnnSetTensor4dDescriptor(output_descriptor,
-				/*format=*/CUDNN_TENSOR_NHWC,
-				/*dataType=*/CUDNN_DATA_FLOAT,
-				/*batch_size=*/1,
-				/*channels=*/1,
-				/*image_height=*/image.getNumRows(),
-				/*image_width=*/image.getNumCols()));
+			/*format=*/CUDNN_TENSOR_NHWC,
+			/*dataType=*/CUDNN_DATA_FLOAT,
+			/*batch_size=*/1,
+			/*channels=*/1,
+			/*image_height=*/image.getNumRows(),
+			/*image_width=*/image.getNumCols()));
 
 		cudnnFilterDescriptor_t kernel_descriptor;
 		checkCUDNN(cudnnCreateFilterDescriptor(&kernel_descriptor));
 		checkCUDNN(cudnnSetFilter4dDescriptor(kernel_descriptor,
-				/*dataType=*/CUDNN_DATA_FLOAT,
-				/*format=*/CUDNN_TENSOR_NCHW,
-				/*out_channels=*/1,
-				/*in_channels=*/1,
-				/*kernel_height=*/3,
-				/*kernel_width=*/3));
+			/*dataType=*/CUDNN_DATA_FLOAT,
+			/*format=*/CUDNN_TENSOR_NCHW,
+			/*out_channels=*/1,
+			/*in_channels=*/1,
+			/*kernel_height=*/3,
+			/*kernel_width=*/3));
 		cudnnConvolutionDescriptor_t convolution_descriptor;
 		checkCUDNN(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
 		checkCUDNN(cudnnSetConvolution2dDescriptor(convolution_descriptor,
@@ -117,7 +116,7 @@ namespace processing {
 				/*memoryLimitInBytes=*/0,
 				&convolution_algorithm))
 
-		size_t workspace_bytes = 0;
+			size_t workspace_bytes = 0;
 		checkCUDNN(cudnnGetConvolutionForwardWorkspaceSize(cudnn,
 			input_descriptor,
 			kernel_descriptor,
@@ -183,39 +182,10 @@ namespace processing {
 		Ptr<cuda::Convolution> convolver = cuda::createConvolution(Size(32, 16));
 
 		float filter[] = { 1,2,3,4,5,6,7,8,9 };
-		cv::Mat kernel(3 ,3, CV_32FC1,(void *) filter);
+		cv::Mat kernel(3, 3, CV_32FC1, (void *)filter);
 		cv::Mat input(image.getNumRows(), image.getNumCols(), CV_32FC1, image.getInputGrayPointerFloat());
 		cv::Mat output(image.getNumRows(), image.getNumCols(), CV_32FC1);
 		convolver->convolve(input, kernel, output);
-		
-
-
-		uint offset(0);
-		for (auto& filter : filters)
-		{
-			switch (filter->getWidth())
-			{
-			case 3:
-			{
-				float * ptr = (deviceFilters.get() + offset);
-				
-
-
-				//convolutionGPUNaive << <gridSize, blockSize >> >(ptr, image.getNumRows(), image.getNumCols(), deviceGrayImageIn.get(), deviceGrayImageOut.get(), 1);
-				break;
-			}
-			
-			default:
-				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
-				break;
-			}
-			offset += filter->getSize();
-			shared_ptr<float> resultCPU = makeArray<float>(image.getNumPixels());
-			checkCudaErrors(cudaMemcpy(resultCPU.get(), deviceGrayImageOut.get(), image.getNumPixels() * sizeof(float), cudaMemcpyDeviceToHost));
-			results.push_back(resultCPU);
-		}
-		checkCudaErrors(cudaDeviceSynchronize());
-	
 	}
 
 }

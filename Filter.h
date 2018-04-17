@@ -13,10 +13,6 @@
 #include <memory>
 #include <iostream>
 
-#define CPU __host__
-#define CPUGPU __device__ __host__
-#define CPUGPUINLINE __device__ __host__ __forceinline__ 
-
 using namespace std;
 namespace processing 
 {

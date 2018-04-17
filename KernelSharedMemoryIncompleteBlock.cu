@@ -40,12 +40,11 @@ using namespace std;
 				static_assert(BLOCK_SIZE_X * MAX_SMALL_TILE_DIMENION_X - TILE_SIZE_X * MAX_SMALL_TILE_DIMENION_X >= FILTER_WIDTH - 1, "Wrong block and tile size: BLOCK_SIZE_X * MAX_SMALL_TILE_DIMENION_X - TILE_SIZE_X * MAX_SMALL_TILE_DIMENION_X >= FILTER_WIDTH - 1"); \
 				static_assert(BLOCK_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y - TILE_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y >= FILTER_WIDTH - 1, "Wrong block and tile size: BLOCK_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y - TILE_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y >= FILTER_WIDTH - 1"); \
 				convolutionGPUSharedIncompleteBlock< FILTER_WIDTH, BLOCK_SIZE_X, BLOCK_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y> << <gridSize, blockSize >> >(deviceGrayImageIn, deviceGrayImageOut, inputPitch / sizeof(float), outputPitch / sizeof(float)); \
-				int xlen = image.getNumCols() - (FILTER_WIDTH - 1); \
-				int ylen = image.getNumRows() - (FILTER_WIDTH - 1); \
-				shared_ptr<float> resultCPU = makeArray<float>(xlen*ylen); \
-				checkCudaErrors(cudaHostRegister(resultCPU.get(), xlen*ylen * sizeof(float), cudaHostRegisterPortable)); \
+				int xlen = image->getNumCols() - (FILTER_WIDTH - 1); \
+				int ylen = image->getNumRows() - (FILTER_WIDTH - 1); \
+				shared_ptr<float> resultCPU = allocateCudaHostSafe<float>(xlen*ylen); \
 				checkCudaErrors(cudaMemcpy2D(resultCPU.get(), xlen * sizeof(float), deviceGrayImageOut, outputPitch, xlen * sizeof(float), ylen, cudaMemcpyDeviceToHost)); \
-				checkCudaErrors(cudaHostUnregister(resultCPU.get())); \
+				checkCudaErrors(cudaDeviceSynchronize()); \
 				results.push_back(resultCPU); \
 				break; \
 			}
@@ -136,74 +135,74 @@ namespace processing
 	}
 
 
-	KernelSharedMemoryIncompleteBlock::KernelSharedMemoryIncompleteBlock()
+	KernelSharedMemoryIncompleteBlock::KernelSharedMemoryIncompleteBlock() : SimpleRunnable(true)
 	{}
 
-
-	void KernelSharedMemoryIncompleteBlock::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
+	void KernelSharedMemoryIncompleteBlock::run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
 	{
-		const short MAX_BLOCK_SIZE_X = 64;
-		const short MAX_BLOCK_SIZE_Y = 64;
-		
-
-		float* deviceGrayImageOut = 0;
-		size_t outputPitch = 0;
-		checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageOut, &outputPitch, (image.getNumCols() + MAX_BLOCK_SIZE_X * MAX_SMALL_TILE_DIMENION_X) * sizeof(float), (image.getNumRows() + MAX_BLOCK_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y)));
-		float* hostGrayImage = image.getInputGrayPointerFloat();
-
-		// memory allocation
-		int colsForGridX = CEIL(image.getNumCols(), MAX_SMALL_TILE_DIMENION_X);
-		int rowsForGridY = CEIL(image.getNumRows(), MAX_SMALL_TILE_DIMENION_Y);
-
-		float* deviceGrayImageIn;
-		size_t inputPitch = 0;
-
-		checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageIn, &inputPitch, (image.getNumCols() + MAX_BLOCK_SIZE_X * MAX_SMALL_TILE_DIMENION_X) * sizeof(float), image.getNumRows() + MAX_BLOCK_SIZE_Y* MAX_SMALL_TILE_DIMENION_Y));
-		checkCudaErrors(cudaDeviceSynchronize());
-		checkCudaErrors(cudaMemcpy2D(deviceGrayImageIn, inputPitch, hostGrayImage, image.getNumCols() * sizeof(float), image.getNumCols() * sizeof(float), image.getNumRows(), cudaMemcpyHostToDevice));
-
-
-		for (auto& filter : filters)
+		const short MAX_BLOCK_SIZE_X = 32 * MAX_SMALL_TILE_DIMENION_X;
+		const short MAX_BLOCK_SIZE_Y = 32 * MAX_SMALL_TILE_DIMENION_X;
+		for (auto& image: images)
 		{
-			switch (filter->getWidth())
+			float* deviceGrayImageOut = 0;
+			size_t outputPitch = 0;
+			checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageOut, &outputPitch, (image->getNumCols() + MAX_BLOCK_SIZE_X * MAX_SMALL_TILE_DIMENION_X) * sizeof(float), (image->getNumRows() + MAX_BLOCK_SIZE_Y * MAX_SMALL_TILE_DIMENION_Y)));
+			float* hostGrayImage = image->getInputGrayPointerFloat();
+
+			// memory allocation
+			int colsForGridX = CEIL(image->getNumCols(), MAX_SMALL_TILE_DIMENION_X);
+			int rowsForGridY = CEIL(image->getNumRows(), MAX_SMALL_TILE_DIMENION_Y);
+
+			float* deviceGrayImageIn;
+			size_t inputPitch = 0;
+
+			checkCudaErrors(cudaMallocPitch<float>(&deviceGrayImageIn, &inputPitch, (image->getNumCols() + MAX_BLOCK_SIZE_X * MAX_SMALL_TILE_DIMENION_X) * sizeof(float), image->getNumRows() + MAX_BLOCK_SIZE_Y* MAX_SMALL_TILE_DIMENION_Y));
+			checkCudaErrors(cudaDeviceSynchronize());
+			checkCudaErrors(cudaMemcpy2D(deviceGrayImageIn, inputPitch, hostGrayImage, image->getNumCols() * sizeof(float), image->getNumCols() * sizeof(float), image->getNumRows(), cudaMemcpyHostToDevice));
+
+
+			for (auto& filter : filters)
 			{
-				//CONVOLUTIONSHAREDSMALL(FILTERWIDTH, BLOCKSIZEX, BLOCKSIZEY, TILESIZEX, TILESIZEY)
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(9, 32, 32, 24, 24)
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(11, 32, 32, 22, 22)
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(13, 32, 32, 20, 20)
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(15, 32, 32, 18, 18)
-				
+				switch (filter->getWidth())
+				{
+					//CONVOLUTIONSHAREDSMALL(FILTERWIDTH, BLOCKSIZEX, BLOCKSIZEY, TILESIZEX, TILESIZEY)
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(9, 32, 32, 24, 24)
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(11, 32, 32, 22, 22)
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(13, 32, 32, 20, 20)
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(15, 32, 32, 18, 18)
 
 
-				/*
-				//3x3
-				
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(1, 32, 16, 32, 16)
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(3, 32, 16, 30, 14)
-			//	CONVOLUTIONSHAREDINCOMPLETEBLOCK(5, 32, 16, 28, 12)
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(7, 32, 32, 26, 26)
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(9, 32, 16, 29, 13)
-				CONVOLUTIONSHAREDINCOMPLETEBLOCK(11, 32, 20, 28, 16)
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(13, 32, 20, 28, 16)
-				//CONVOLUTIONSHAREDINCOMPLETEBLOCK(15, 32, 13, 27, 8)
-				*/
-				// 2 x 2
-				CONVOLUTIONSHAREDINCOMPLETEBLOCK(1, 32, 16, 32, 16)
-					CONVOLUTIONSHAREDINCOMPLETEBLOCK(3, 32, 16, 31, 15)
-					CONVOLUTIONSHAREDINCOMPLETEBLOCK(5, 32, 16, 30, 14)
-					CONVOLUTIONSHAREDINCOMPLETEBLOCK(7, 32, 32, 29, 29)
-				CONVOLUTIONSHAREDINCOMPLETEBLOCK(9, 32, 32, 28, 28)
-				CONVOLUTIONSHAREDINCOMPLETEBLOCK(11, 32, 32, 27, 27)
-				CONVOLUTIONSHAREDINCOMPLETEBLOCK(13, 32, 32, 26, 26)
-				CONVOLUTIONSHAREDINCOMPLETEBLOCK(15, 32, 18, 25, 11)
-					
-			default:
-				std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
-				break;
+
+					/*
+					//3x3
+
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(1, 32, 16, 32, 16)
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(3, 32, 16, 30, 14)
+					//	CONVOLUTIONSHAREDINCOMPLETEBLOCK(5, 32, 16, 28, 12)
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(7, 32, 32, 26, 26)
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(9, 32, 16, 29, 13)
+					CONVOLUTIONSHAREDINCOMPLETEBLOCK(11, 32, 20, 28, 16)
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(13, 32, 20, 28, 16)
+					//CONVOLUTIONSHAREDINCOMPLETEBLOCK(15, 32, 13, 27, 8)
+					*/
+					// 2 x 2
+					CONVOLUTIONSHAREDINCOMPLETEBLOCK(1, 32, 16, 32, 16)
+						CONVOLUTIONSHAREDINCOMPLETEBLOCK(3, 32, 16, 31, 15)
+						CONVOLUTIONSHAREDINCOMPLETEBLOCK(5, 32, 16, 30, 14)
+						CONVOLUTIONSHAREDINCOMPLETEBLOCK(7, 32, 32, 29, 29)
+						CONVOLUTIONSHAREDINCOMPLETEBLOCK(9, 32, 32, 28, 28)
+						CONVOLUTIONSHAREDINCOMPLETEBLOCK(11, 32, 32, 27, 27)
+						CONVOLUTIONSHAREDINCOMPLETEBLOCK(13, 32, 32, 26, 26)
+						CONVOLUTIONSHAREDINCOMPLETEBLOCK(15, 32, 18, 25, 11)
+
+				default:
+					std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
+					break;
+				}
 			}
+			cudaFree(deviceGrayImageIn);
+			cudaFree(deviceGrayImageOut);
 		}
-		cudaFree(deviceGrayImageIn);
-		cudaFree(deviceGrayImageOut);
 	}
 
 }

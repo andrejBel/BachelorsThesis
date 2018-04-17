@@ -18,25 +18,103 @@ namespace processing
 	{
 	public:
 
-		Runnable()
+		Runnable() 
+		{}
+
+		Runnable(const bool multi, const bool cropped):
+			multi_(multi),
+			cropped_(cropped)
 		{}
 
 		DELETECOPYASSINGMENT(Runnable)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) = 0;
+		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) {}
 
-		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results)
+		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results) 
 		{
-					
+		
 		}
 
+		// daj prec toto
+		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) {};
+		
 		virtual string getDescription() = 0;
 
 		virtual ~Runnable()	{}
 
+		inline const bool isMulti() const
+		{
+			return multi_;
+		}
 
+		inline const bool isCropped() const 
+		{
+			return cropped_;
+		}
+
+	private:
+		bool multi_;
+		bool cropped_;
 
 	};
+
+	class SimpleRunnable: public Runnable
+	{
+	public:
+		SimpleRunnable(const bool cropped) : Runnable(false, cropped) 
+		{}
+
+		DELETECOPYASSINGMENT(SimpleRunnable)
+
+		virtual string getDescription() override 
+		{
+			if (isCropped()) 
+			{
+				return "Simple convolution cropped";
+			}
+			else 
+			{
+				return "Simple convolution";
+			}
+			
+		}
+
+		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results) override 
+		{
+			throw runtime_error("Multi convolution not supported!");
+		}
+
+		~SimpleRunnable() 
+		{}
+
+	};
+
+	class MultiRunnable : public Runnable
+	{
+	public:
+		MultiRunnable() : Runnable(true, true)
+		{}
+
+		DELETECOPYASSINGMENT(MultiRunnable)
+
+		virtual string getDescription() override
+		{
+			return "Multi convolution";
+		}
+
+		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) override
+		{
+			throw runtime_error("Single convolution not supported!");
+		}
+
+		~MultiRunnable()
+		{}
+
+	};
+
+
+
+
 }
 
 

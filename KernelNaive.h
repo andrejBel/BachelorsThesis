@@ -10,7 +10,7 @@ namespace processing
 {
 
 
-	class KernelNaive : public Runnable
+	class KernelNaive : public SimpleRunnable
 	{
 
 	public:
@@ -19,11 +19,11 @@ namespace processing
 
 		DELETECOPYASSINGMENT(KernelNaive)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) override;
+		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{
-			return "CPU slow naive implementation";
+			return SimpleRunnable::getDescription() +  " GPU naive";
 		}
 
 		template <typename T>
@@ -38,8 +38,8 @@ namespace processing
 			return a > b ? a : b;
 		}
 
-	private:
 
+		
 
 	};
 

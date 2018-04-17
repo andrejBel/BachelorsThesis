@@ -19,24 +19,12 @@ case FILTERWIDTH:\
 namespace processing
 {
 
-	CpuCroppedMulti::CpuCroppedMulti()
+	CpuCroppedMulti::CpuCroppedMulti() : MultiRunnable()
 	{
-	}
-
-
-	void CpuCroppedMulti::run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
-	{
-		throw std::runtime_error("Simple convolution not supported");
 	}
 
 	void CpuCroppedMulti::run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results)
 	{
-		pair<bool, string> check = controlInputForMultiConvolution(images, filters);
-		if (check.first == false)
-		{
-			cerr << check.second << endl;
-			return;
-		}
 		size_t imageSize = images.size();
 		int numCols = images[0]->getNumCols(); //x
 		int numRows = images[0]->getNumRows(); //y

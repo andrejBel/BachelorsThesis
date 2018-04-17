@@ -9,7 +9,7 @@ using namespace std;
 namespace processing
 {
 
-	class KernelNaiveImproved : public Runnable
+	class KernelNaiveImproved : public SimpleRunnable
 	{
 
 	public:
@@ -18,11 +18,11 @@ namespace processing
 
 		DELETECOPYASSINGMENT(KernelNaiveImproved)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) override;
+		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{
-			return "CPU slow without edge copiing";
+			return SimpleRunnable::getDescription() + " GPU naive improved";
 		}
 
 	private:

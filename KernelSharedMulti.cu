@@ -9,7 +9,7 @@
 
 #include "opencv2/core/utility.hpp"
 
-
+#include "MemoryPoolPinned.h"
 #include <vector>
 #include <cstdio>
 #include <cmath>
@@ -288,28 +288,14 @@ namespace processing
 
 	}
 
-
-
-
-	KernelSharedMulti::KernelSharedMulti()
+	KernelSharedMulti::KernelSharedMulti() : MultiRunnable()
 	{
-	}
-
-	void KernelSharedMulti::run(ImageFactory & image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
-	{
-		throw std::runtime_error("Simple convolution not supported");
 	}
 
 	void KernelSharedMulti::run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results)
 	{
 		const short MAX_SMALL_TILE_DIMENION_X = 2;
 		const short MAX_SMALL_TILE_DIMENION_Y = 2;
-		pair<bool, string> checking = controlInputForMultiConvolution(images, filters);
-		if (checking.first == false)
-		{
-			cerr << checking.second << endl;
-			return;
-		}
 		size_t pitchInput = MemoryPoolPitched::getMemoryPoolPitchedForOutput().getPitch();
 		size_t pitchOutput = MemoryPoolPitched::getMemoryPoolPitchedForInput().getPitch();
 		int numCols = images[0]->getNumCols(); //x
@@ -387,8 +373,9 @@ namespace processing
 						break;
 					}
 				}
-				shared_ptr<float> resultCPU = makeArray<float>(xlen*ylen);
+				shared_ptr<float> resultCPU = allocateCudaHostSafe<float>(xlen*ylen);
 				checkCudaErrors(cudaMemcpy2D(resultCPU.get(), xlen * sizeof(float), deviceGrayImageOut, pitchOutput, xlen * sizeof(float), ylen, cudaMemcpyDeviceToHost));
+				checkCudaErrors(cudaDeviceSynchronize());
 				partialResults[j].push_back(resultCPU);
 			}
 		}

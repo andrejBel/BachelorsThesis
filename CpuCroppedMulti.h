@@ -11,7 +11,7 @@ namespace processing
 {
 
 
-	class CpuCroppedMulti : public Runnable
+	class CpuCroppedMulti : public MultiRunnable
 	{
 
 	public:
@@ -20,13 +20,11 @@ namespace processing
 
 		DELETECOPYASSINGMENT(CpuCroppedMulti)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) override;
-
 		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{
-			return "CPU cropped multi single core";
+			return  MultiRunnable::getDescription() + " CPU";
 		}
 
 	private:

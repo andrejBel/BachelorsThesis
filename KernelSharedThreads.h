@@ -10,7 +10,7 @@ using namespace std;
 namespace processing
 {
 
-	class KernelSharedThreads : public Runnable
+	class KernelSharedThreads : public SimpleRunnable
 	{
 
 	public:
@@ -19,11 +19,11 @@ namespace processing
 
 		DELETECOPYASSINGMENT(KernelSharedThreads)
 
-		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)  override;
+		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) override;
 
 		virtual string getDescription() override
 		{
-			return "GPU shared memmory threads";
+			return SimpleRunnable::getDescription() +  " GPU shared memmory threads";
 		}
 
 	private:
