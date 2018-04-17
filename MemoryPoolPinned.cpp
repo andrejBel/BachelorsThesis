@@ -7,6 +7,7 @@
 #include <helper_cuda.h>
 #include <device_functions.h>
 #include <cuda_runtime_api.h>
+#include "processing.h"
 
 namespace processing
 {
@@ -19,17 +20,6 @@ namespace processing
 			buffer_.pop();
 		}
 	}
-	shared_ptr<float> MemoryPoolPinned::acquireMemory()
-	{
-		//unique_lock<mutex> lock(mutex_);
-		//while (buffer_.empty())
-		//{
-			//conditionVariable_.wait(lock);
-		//}
-		float* out = buffer_.top();
-		buffer_.pop();
-		return shared_ptr<float>(out, [this](float * ptr) { this->releaseMemory(ptr); });
-	}
 
 	void MemoryPoolPinned::releaseMemory(float* memory)
 	{
@@ -39,15 +29,35 @@ namespace processing
 		//conditionVariable_.notify_one();
 	}
 
-	MemoryPoolPinned & MemoryPoolPinned::getMemoryPoolPinnedForOutput()
-	{
-		static MemoryPoolPinned pool(PINNED_MEMORY_BUFFER_SIZE_OUTPUT);
-		return pool;
-	}
-
 	MemoryPoolPinned & MemoryPoolPinned::getMemoryPoolPinnedForInput()
 	{
 		static MemoryPoolPinned pool(PINNED_MEMORY_BUFFER_SIZE_INPUT);
+		return pool;
+	}
+
+	shared_ptr<float> MemoryPoolPinned::acquireMemory(const size_t size,const bool preferPinned)
+	{
+		if (buffer_.size() && size <= MAX_IMAGE_RESOLUTION)
+		{
+			float* out = buffer_.top();
+			buffer_.pop();
+			return shared_ptr<float>(out, [this](float * ptr) { this->releaseMemory(ptr); });
+		} else
+		{
+			if (preferPinned) // cuda host
+			{
+				return allocateCudaHostSafe<float>(size);
+			}
+			else 
+			{
+				return shared_ptr<float>(new float[size], [](float * ptr) {delete[] ptr; });
+			}	
+		}
+	}
+
+	MemoryPoolPinned & MemoryPoolPinned::getMemoryPoolPinnedForOutput()
+	{
+		static MemoryPoolPinned pool(PINNED_MEMORY_BUFFER_SIZE_OUTPUT);
 		return pool;
 	}
 

@@ -16,7 +16,7 @@ namespace processing
 	class ImageFactory
 	{
 	public:
-		ImageFactory(const string& fileName, const bool memoryPool = true);
+		ImageFactory(const string& fileName, const bool pinnedMemory = true);
 
 		ImageFactory(const ImageFactory& other) = delete;
 
@@ -24,7 +24,7 @@ namespace processing
 
 		inline float* getInputGrayPointerFloat() const
 		{
-			return memoryPool_ ? imageGrayInputFloat_.get() : reinterpret_cast<float *>(imageGrayInput_.data);
+			return pinnedMemory_ ? imageGrayInputFloat_.get() : reinterpret_cast<float *>(imageGrayInput_.data);
 		}
 
 		inline int getNumRows() const
@@ -48,7 +48,7 @@ namespace processing
 
 	private:
 		cv::Mat imageGrayInput_;
-		const bool memoryPool_;
+		const bool pinnedMemory_;
 		shared_ptr<float> imageGrayInputFloat_;
 
 

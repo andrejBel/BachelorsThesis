@@ -21,7 +21,7 @@ namespace processing
 
 		MemoryPoolPinned& operator=(const MemoryPoolPinned & other) = delete;
 
-		shared_ptr<float> acquireMemory();
+		shared_ptr<float> acquireMemory(const size_t size, const bool preferPinned);
 	
 		static MemoryPoolPinned& getMemoryPoolPinnedForOutput();
 		

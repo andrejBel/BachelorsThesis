@@ -5,12 +5,12 @@
 namespace processing 
 {
 
-	ImageFactory::ImageFactory(const string & fileName, const bool memoryPool) :
-		memoryPool_(memoryPool)
+	ImageFactory::ImageFactory(const string & fileName, const bool pinnedMemory) :
+		pinnedMemory_(pinnedMemory)
 	{
 		imread(fileName, CV_LOAD_IMAGE_UNCHANGED).copyTo(imageGrayInput_);
 		if (imageGrayInput_.empty()) {
-			std::cerr << "Couldn't open file: " << fileName << std::endl;
+			std::cerr << "Couldn't open image: " << fileName << std::endl;
 			exit(1);
 		}
 		if (imageGrayInput_.channels() > 1)
@@ -18,10 +18,10 @@ namespace processing
 			cvtColor(imageGrayInput_, imageGrayInput_, CV_BGR2GRAY);
 		}
 		imageGrayInput_.convertTo(imageGrayInput_, CV_32FC1);
-		if (memoryPool)
+		if (pinnedMemory_)
 		{
-			imageGrayInputFloat_ = MemoryPoolPinned::getMemoryPoolPinnedForInput().acquireMemory();
 			const size_t numPixels = getNumPixels();
+			imageGrayInputFloat_ = MemoryPoolPinned::getMemoryPoolPinnedForInput().acquireMemory(numPixels, true);
 			std::copy((float *)imageGrayInput_.data, (float *)imageGrayInput_.data + numPixels, imageGrayInputFloat_.get());
 		}
 	}
