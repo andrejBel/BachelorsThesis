@@ -101,19 +101,24 @@ namespace processing
 
 	};
 
-	static const uint MAX_IMAGE_WIDTH = 2000;
-	static const uint MAX_IMAGE_HEIGHT = 2000;
-	static const size_t MAX_IMAGE_RESOLUTION = MAX_IMAGE_WIDTH*MAX_IMAGE_HEIGHT;
-	static const int PINNED_MEMORY_BUFFER_SIZE_INPUT = 10;
-	static const int PINNED_MEMORY_BUFFER_SIZE_OUTPUT = 40;
-	static const int PITCHED_MEMORY_BUFFER_SIZE_INPUT = 4;
-	static const int PITCHED_MEMORY_BUFFER_SIZE_OUTPUT = 20;
-
-	const int MAXFILTERWIDTH = 17;
+	static constexpr uint MAX_IMAGE_WIDTH = 2000;
+	static constexpr uint MAX_IMAGE_HEIGHT = 2000;
+	static constexpr size_t MAX_IMAGE_RESOLUTION = MAX_IMAGE_WIDTH*MAX_IMAGE_HEIGHT;
+	static constexpr int PINNED_MEMORY_BUFFER_SIZE_INPUT = 10;
+	static constexpr int PINNED_MEMORY_BUFFER_SIZE_OUTPUT = 40;
+	static constexpr int PITCHED_MEMORY_BUFFER_SIZE_INPUT = 10;
+	static constexpr int PITCHED_MEMORY_BUFFER_SIZE_OUTPUT = 20;
+	
+	static const string DELIMITER = "|";
+	static constexpr int MAXFILTERWIDTH = 15;
+	
+	
 	static __constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH * PITCHED_MEMORY_BUFFER_SIZE_OUTPUT];
 	static __constant__ Box<PITCHED_MEMORY_BUFFER_SIZE_OUTPUT> PITCHED_MEMORY_BUFFER_DEVICE; 
 	static __device__ __constant__ size_t INPUT_PITCH_DEVICE[1];
 	static __device__ __constant__ size_t OUTPUT_PITCH_DEVICE[1];
+
+
 
 	static QueueBuffer<PITCHED_MEMORY_BUFFER_SIZE_OUTPUT> PITCHED_MEMORY_BUFFER_HOST;
 	
@@ -153,6 +158,26 @@ namespace processing
 		return memory;
 	}
 
+	template <typename T>
+	__host__ __forceinline__ shared_ptr<T> allocateCudaHostSafe(size_t size) 
+	{
+		T* memory = nullptr;
+		shared_ptr<T> resultCPU = nullptr;
+		auto allocationResult = cudaMallocHost((void **)&memory, size * sizeof(T));
+		if (allocationResult == cudaError::cudaSuccess)
+		{
+			resultCPU = shared_ptr<T>(memory, [](T* p) {  checkCudaErrors(cudaFreeHost(p)); });
+		}
+		else if (allocationResult == cudaError::cudaErrorMemoryAllocation) // memory allocation problem, malo pamate pre pinned, tak alokujeme klasiku na hostovi
+		{
+			resultCPU = makeArray<T>(size);
+		}
+		else
+		{
+			checkCudaErrors(allocationResult); // neajak ina chyba
+		}
+		return resultCPU;
+	}
 
 	template <typename T>
 	__host__ __forceinline__ shared_ptr<T> allocateManagedMemory(size_t size)
