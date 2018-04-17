@@ -2,27 +2,33 @@
 #include "Filter.h"
 #include "processing.h"
 #include <memory>
+#include <iostream>
 #include "KernelSharedMemoryFullBlock.h"
 #include "KernelNaiveImproved.h"
 #include "CpuSlowConvolution.h"
-#include "CPUSlowConvolutionAsync.h"
 #include "KernelSharedMemoryIncompleteBlock.h"
 #include "KernelNaive.h"
 #include "CpuCropped.h"
 #include "ImageFactory.h"
+#include <numeric>
 
-namespace processing 
+namespace processing
 {
 
-	Test::Test() : fileName_(INPUT_IMAGE_PATH),
+	Test::Test():
 		epsilon_(0.001f),
 		replications_(1)
 	{}
 
-	vector<vector<shared_ptr<float>>> Test::operator()()
+	vector<vector<shared_ptr<float>>> Test::testExtend()
 	{
 		vector<vector<shared_ptr<float>>> results;
-		ImageFactory image(fileName_);
+		vector<shared_ptr<ImageFactory>> images;
+		for (auto& filename : fileNames_)
+		{
+			images.push_back(make_shared<ImageFactory>(filename));
+		}
+		
 		TickMeter meter;
 		for (shared_ptr<Runnable> & runnable : runnables_)
 		{
@@ -32,7 +38,15 @@ namespace processing
 			{
 				meter.reset();
 				meter.start();
-				runnable->run(image, filters_, results[results.size() - 1]);
+				if (i == 0) 
+				{
+					runnable->run(images, filters_, results[results.size() - 1]);
+				}
+				else 
+				{
+					vector<shared_ptr<float>> result;
+					runnable->run(images, filters_, result);
+				}
 				meter.stop();
 				time += meter.getTimeMicro();
 			}
@@ -43,73 +57,47 @@ namespace processing
 		{
 			vector<shared_ptr<float>>& resultsFirst = results[0];
 			vector<shared_ptr<float>>& resultsSecond = results[1];
-			size_t pixels = image.getNumPixels();
-			auto size = std::min(resultsFirst.size(), resultsSecond.size());
-			for (size_t i = 0; i < size; i++)
+			size_t beginning = 0;
+			size_t end = filters_.size();
+			for (vector<shared_ptr<ImageFactory>>::size_type imageIndex = 0; imageIndex < images.size(); imageIndex++)
 			{
-				shared_ptr<float> resultFirst = resultsFirst[i];
-				shared_ptr<float> resultSecond = resultsSecond[i];
-				cout << "bezim" << endl;
-				for (size_t j = 0; j < pixels; j++)
+				size_t pixels = images[imageIndex]->getNumPixels();
+				for (size_t filterIndex = beginning; filterIndex < end; filterIndex++)
 				{
-					if ([&resultFirst, &resultSecond, j, this]() {
-						return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > epsilon_;
-					}())
+					shared_ptr<float> resultFirst = resultsFirst[filterIndex];
+					shared_ptr<float> resultSecond = resultsSecond[filterIndex];
+					cout << "bezim" << endl;
+					for (size_t j = 0; j < pixels; j++)
 					{
-
-						cout << "-----------------------" << endl;
-						cout << "Index: " << j << ", epsilon: " << epsilon_ << endl;
-						cout << runnables_[0]->getDescription() << ": " << resultFirst.get()[j] << endl;
-						cout << runnables_[1]->getDescription() << ": " << resultSecond.get()[j] << endl;
-						cout << runnables_[0]->getDescription() << " - " << runnables_[1]->getDescription() << ": " << resultFirst.get()[j] - resultSecond.get()[j] << endl;
-						cout << "-----------------------" << endl;
-
+						if ([&resultFirst, &resultSecond, j, this]() {
+							return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > epsilon_;
+						}())
+						{
+							cout << "-----------------------" << endl;
+							cout << "Index: " << j << ", epsilon: " << epsilon_ << endl;
+							cout << runnables_[0]->getDescription() << ": " << resultFirst.get()[j] << endl;
+							cout << runnables_[1]->getDescription() << ": " << resultSecond.get()[j] << endl;
+							cout << runnables_[0]->getDescription() << " - " << runnables_[1]->getDescription() << ": " << resultFirst.get()[j] - resultSecond.get()[j] << endl;
+							cout << "-----------------------" << endl;
+						}
 					}
 				}
-			}
+				beginning = end;
+				end += filters_.size();
+			}	
 		}
 		return results;
 	}
-
-	vector<vector<shared_ptr<float>>> Test::testForMannaged()
-	{
-		vector<vector<shared_ptr<float>>> results;
-		ImageFactory image(fileName_);
-		TickMeter meter;
-		for (shared_ptr<Runnable> & runnable : runnables_)
-		{
-			double time(0);
-			results.push_back(vector<shared_ptr<float>>());
-			for (uint i = 0; i < replications_; i++)
-			{
-				meter.reset();
-				size_t pixels = image.getNumPixels();
-				auto& result = results[results.size() - 1];
-				meter.start();
-				runnable->run(image, filters_, result);
-				size_t size = result.size();
-				for (size_t j = 0; j < size; j++)
-				{
-					float * memory = result[0].get();
-					float temp;
-					for (size_t k = 0; k < pixels; k++)
-					{
-						temp = memory[j];
-					}
-				}
-				meter.stop();
-				time += meter.getTimeMilli();
-			}
-			cout << runnable->getDescription() << ". Replications:  " << replications_ << ". Average time: " << (time / replications_) << endl;
-		}
-		return results;
-	}
-
 
 	vector<vector<shared_ptr<float>>> Test::testCropped()
 	{
 		vector<vector<shared_ptr<float>>> results;
-		ImageFactory image(fileName_);
+		vector<shared_ptr<ImageFactory>> images;
+		for (auto& filename : fileNames_)
+		{
+			images.push_back(make_shared<ImageFactory>(filename));
+		}
+
 		TickMeter meter;
 		for (shared_ptr<Runnable> & runnable : runnables_)
 		{
@@ -119,159 +107,241 @@ namespace processing
 			{
 				meter.reset();
 				meter.start();
-				runnable->run(image, filters_, results[results.size() - 1]);
+				if (i == 0)
+				{
+					runnable->run(images, filters_, results[results.size() - 1]);
+				}
+				else
+				{
+					vector<shared_ptr<float>> result;
+					runnable->run(images, filters_, result);
+				}
 				meter.stop();
-				time += meter.getTimeMilli();
+				time += meter.getTimeMicro();
 			}
 
 			cout << runnable->getDescription() << ". Replications:  " << replications_ << ". Average time: " << (time / replications_) << endl;
 		}
-		int columns = image.getNumCols();
-		int rows = image.getNumRows();
 		if (runnables_.size() == 2)
 		{
-
 			vector<shared_ptr<float>>& resultsFirst = results[0];
 			vector<shared_ptr<float>>& resultsSecond = results[1];
-			size_t pixels = image.getNumPixels();
-			auto size = std::min(resultsFirst.size(), resultsSecond.size());
-			size = std::min(filters_.size(), size);
-			for (size_t i = 0; i < size; i++)
+			size_t beginning = 0;
+			size_t end = filters_.size();
+			for (vector<shared_ptr<ImageFactory>>::size_type imageIndex = 0; imageIndex < images.size(); imageIndex++)
 			{
-				shared_ptr<float> resultFirst = resultsFirst[i];
-				shared_ptr<float> resultSecond = resultsSecond[i];
-				cout << "Bezim" << endl;
-				size_t range = (columns - (filters_[i]->getWidth() - 1)) * (rows - (filters_[i]->getWidth() - 1));
-				for (size_t j = 0; j < range; j++)
+				size_t pixels = images[imageIndex]->getNumPixels();
+				int columns = images[imageIndex]->getNumCols();
+				int rows = images[imageIndex]->getNumRows();
+
+
+				for (size_t filterIndex = beginning, filterRealIndex = 0; filterIndex < end; filterIndex++, filterRealIndex++)
 				{
-					if ([&resultFirst, &resultSecond, j, this]() {
-						return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > epsilon_;
-					}())
+					shared_ptr<float> resultFirst = resultsFirst[filterIndex];
+					shared_ptr<float> resultSecond = resultsSecond[filterIndex];
+					size_t range = (columns - (filters_[filterRealIndex]->getWidth() - 1)) * (rows - (filters_[filterRealIndex]->getWidth() - 1));
+					cout << "bezim" << endl;
+					for (size_t j = 0; j < range; j++)
 					{
-
-						cout << "-----------------------" << endl;
-						cout << "Index: " << j << ", epsilon: " << epsilon_ << endl;
-						cout << runnables_[0]->getDescription() << ": " << resultFirst.get()[j] << endl;
-						cout << runnables_[1]->getDescription() << ": " << resultSecond.get()[j] << endl;
-						cout << runnables_[0]->getDescription() << " - " << runnables_[1]->getDescription() << ": " << resultFirst.get()[j] - resultSecond.get()[j] << endl;
-						cout << "-----------------------" << endl;
-
+						if ([&resultFirst, &resultSecond, j, this]() {
+							return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > epsilon_;
+						}())
+						{
+							cout << "-----------------------" << endl;
+							cout << "Index: " << j << ", epsilon: " << epsilon_ << endl;
+							cout << runnables_[0]->getDescription() << ": " << resultFirst.get()[j] << endl;
+							cout << runnables_[1]->getDescription() << ": " << resultSecond.get()[j] << endl;
+							cout << runnables_[0]->getDescription() << " - " << runnables_[1]->getDescription() << ": " << resultFirst.get()[j] - resultSecond.get()[j] << endl;
+							cout << "-----------------------" << endl;
+						}
 					}
 				}
+				beginning = end;
+				end += filters_.size();
 			}
 		}
 		return results;
+	}
+
+	void Test::run()
+	{
+		if (runnables_.size() == 1) 
+		{
+			shared_ptr<Runnable> runnable = runnables_[0];
+			if (runnable->isMulti())
+			{
+				throw std::runtime_error(runnable->getDescription() + " is for multi convolution, not simple!");
+				return;
+			}
+			if (!runnable->isCropped())
+			{
+				testExtend();
+			}
+			else
+			{
+				testCropped();
+			}
+		}
+		else if (runnables_.size() == 2) 
+		{
+			auto runnable1 = runnables_[0];
+			auto runnable2 = runnables_[1];
+			if (runnable1->isMulti())
+			{
+				throw std::runtime_error(runnable1->getDescription() + " is for multi convolution, not simple!");
+				return;
+			}
+			if (runnable2->isMulti())
+			{
+				throw std::runtime_error(runnable2->getDescription() + " is for multi convolution, not simple!");
+				return;
+			}
+			if (!runnable1->isCropped() && !runnable2->isCropped())
+			{
+				testExtend();
+			}
+			else if (runnable1->isCropped() && runnable2->isCropped())
+			{
+				testCropped();
+			}
+			else
+			{
+				throw std::runtime_error("One runnable is cropped and other extend!");
+			}
+		}
+		else 
+		{
+			throw std::runtime_error("Too many runables, maximum is 2");
+		}
 	}
 
 
 	void Test::testAlone(shared_ptr<Runnable> runnable, uint replications)
 	{
 		TestBuilder builder;
-		builder.addRunnable(runnable).setReplications(replications);
-		builder.setFilters({ Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter() }).build()();
-		//builder.setFilters({ Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter() }).build()();
-		//builder.setFilters({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter() }).build()();
-		//builder.setFilters({ Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter() }).build()();
-		//builder.setFilters({ Test::get9x9Filter(), Test::get9x9Filter(), Test::get9x9Filter(), Test::get9x9Filter() }).build()(); // (9, 32, 16, 29, 13)
-		//builder.setFilters({ Test::get11x11Filter(), Test::get11x11Filter(), Test::get11x11Filter(), Test::get11x11Filter() }).build()();
-		//builder.setFilters({ Test::get13x13Filter(), Test::get13x13Filter(), Test::get13x13Filter() }).build()();
-		//builder.setFilters({ Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(), Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter() }).build()();
-		builder.setFilters({ Test::get3x3Filter() }).build()();
-	}
-
-
-	void Test::testAloneForManaged(shared_ptr<Runnable> runnable, uint replications)
-	{
-		TestBuilder builder;
-		builder.setFilters({ Test::get3x3Filter(), Test::get5x5Filter(), Test::get7x7Filter(), Test::get3x3Filter() , Test::get5x5Filter(), Test::get7x7Filter() }).addRunnable(runnable).setReplications(replications);
-		builder.build().testForMannaged();
-	}
-
-
-	void Test::testAgainstCpuMulticore(shared_ptr<Runnable> runnable, uint replications)
-	{
-		TestBuilder builder;
-		builder
-			.addFilter(Test::get1x1Filter())
-			.addFilter(Test::get3x3Filter())
-			.addFilter(Test::get5x5Filter())
-			.addFilter(Test::get7x7Filter())
-			.addFilter(Test::get9x9Filter())
-			.addFilter(Test::get11x11Filter())
-			.addFilter(Test::get13x13Filter())
-			.addFilter(Test::get15x15Filter())
-			.addRunnable(runnable).addRunnable(make_shared<CPUSlowConvolutionAsync>()).setReplications(replications);
-		builder.build()();
-	}
-
-
-	void Test::testAgainstCpuSingleCore(shared_ptr<Runnable> runnable, uint replications)
-	{
-		TestBuilder builder;
-		builder
-			.addFilter(Test::get1x1Filter())
-			.addFilter(Test::get3x3Filter())
-			.addFilter(Test::get5x5Filter())
-			.addFilter(Test::get7x7Filter())
-			.addFilter(Test::get9x9Filter())
-			.addFilter(Test::get11x11Filter())
-			.addFilter(Test::get13x13Filter())
-			.addFilter(Test::get15x15Filter())
-			.addRunnable(runnable).addRunnable(make_shared<CpuSlowConvolution>()).setReplications(replications);
-		builder.build()();
-	}
-
-
-	void Test::testAgainstEachOther(shared_ptr<Runnable> runnable1, shared_ptr<Runnable> runnable2, uint replications, bool cropped)
-	{
-		TestBuilder builder;
-		builder
-			.addFilter(Test::get1x1Filter())
-			.addFilter(Test::get3x3Filter())
-			//.addFilter(Test::get3x3Filter())
-			.addFilter(Test::get5x5Filter())
-			.addFilter(Test::get7x7Filter())
-			.addFilter(Test::get9x9Filter())
-			.addFilter(Test::get11x11Filter())
-			.addFilter(Test::get13x13Filter())
-			//.addFilter(Test::get13x13Filter())
-			.addFilter(Test::get15x15Filter())
-			//.addFilter(Test::get15x15Filter())
-			//.addFilter(Test::get15x15Filter())
-			.addRunnable(runnable1)
-			.addRunnable(runnable2)
-			.setReplications(replications);
-		if (cropped)
+		for (auto& path : INPUT_IMAGE_PATHS)
 		{
-			builder.build().testCropped();
+			builder.addImagePath(path);
+		}
+		builder
+			.setReplications(replications)
+			.addRunnable(runnable)
+			.addFilter(Test::get1x1Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get5x5Filter())
+			.addFilter(Test::get7x7Filter())
+			.addFilter(Test::get9x9Filter())
+			.addFilter(Test::get11x11Filter())
+			.addFilter(Test::get13x13Filter())
+			.addFilter(Test::get15x15Filter());
+		if (runnable->isMulti()) 
+		{
+			std::cerr << runnable->getDescription() << " is for multi convolution, not simple!" << endl;
+			return;
+		}
+		if (!runnable->isCropped())
+		{
+			builder.build().testExtend();
 		}
 		else
 		{
-			builder.build()();
+			builder.build().testCropped();
 		}
 	}
+
+	void Test::testAgainstEachOther(shared_ptr<Runnable> runnable1, shared_ptr<Runnable> runnable2, uint replications)
+	{
+		TestBuilder builder;
+		for (auto& path : INPUT_IMAGE_PATHS)
+		{
+			builder.addImagePath(path);
+		}
+		builder
+			.setReplications(replications)
+			.addRunnable(runnable1)
+			.addRunnable(runnable2)
+			.addFilter(Test::get1x1Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get5x5Filter())
+			.addFilter(Test::get7x7Filter())
+			.addFilter(Test::get9x9Filter())
+			.addFilter(Test::get11x11Filter())
+			.addFilter(Test::get13x13Filter())
+			.addFilter(Test::get15x15Filter())
+			.addFilter(Test::get1x1Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get5x5Filter())
+			.addFilter(Test::get7x7Filter())
+			.addFilter(Test::get9x9Filter())
+			.addFilter(Test::get11x11Filter())
+			.addFilter(Test::get13x13Filter())
+			.addFilter(Test::get15x15Filter());
+		if (runnable1->isMulti())
+		{
+			std::cerr << runnable1->getDescription() << " is for multi convolution, not simple!" << endl;
+			return;
+		}
+		if (runnable2->isMulti())
+		{
+			std::cerr << runnable2->getDescription() << " is for multi convolution, not simple!" << endl;
+			return;
+		}
+		if (!runnable1->isCropped() && !runnable2->isCropped())
+		{
+			builder.build().testExtend();
+		}
+		else if (runnable1->isCropped() && runnable2->isCropped())
+		{
+			builder.build().testCropped();
+		}
+		else 
+		{
+			std::cerr << "One runnable is cropped and other extend!" << endl;
+		}
+	}
+
+
+	void Test::testAgainstCpu(shared_ptr<Runnable> runnable, uint replications)
+	{
+		TestBuilder builder;
+		for (auto& path : INPUT_IMAGE_PATHS)
+		{
+			builder.addImagePath(path);
+		}
+		builder
+			.setReplications(replications)
+			.addRunnable(runnable)
+			.addFilter(Test::get1x1Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get5x5Filter())
+			.addFilter(Test::get7x7Filter())
+			.addFilter(Test::get9x9Filter())
+			.addFilter(Test::get11x11Filter())
+			.addFilter(Test::get13x13Filter())
+			.addFilter(Test::get15x15Filter());
+			if (runnable->isMulti())
+			{
+				std::cerr << runnable->getDescription() << " is for multi convolution, not simple!" << endl;
+				return;
+			}
+			if (!runnable->isCropped()) 
+			{
+				builder.addRunnable(make_shared<CpuSlowConvolution>());
+				builder.build().testExtend();
+			}
+			else 
+			{
+				builder.addRunnable(make_shared<CpuCropped>());
+				builder.build().testCropped();
+			}
+	}
+
 
 	void Test::testAllAgainstCpu()
 	{
 		TestBuilder builder;
 		vector<shared_ptr<Filter>> filters = { Test::get3x3Filter() , Test::get5x5Filter(), Test::get7x7Filter() };
-		builder.setFilters(filters);
-		{
-			vector<shared_ptr<Runnable>> runnables = { make_shared<KernelSharedMemoryFullBlock>(), make_shared<CpuSlowConvolution>() };
-			builder.setRunnables(runnables);
-			builder.build()();
-		}
-		{
-			vector<shared_ptr<Runnable>> runnables = { make_shared<KernelNaiveImproved>(), make_shared<CpuSlowConvolution>() };
-			builder.setRunnables(runnables);
-			builder.build()();
-		}
-		{
-			vector<shared_ptr<Runnable>> runnables = { make_shared<CPUSlowConvolutionAsync>(), make_shared<CpuSlowConvolution>() };
-			builder.setRunnables(runnables);
-			builder.build()();
-		}
-
+		
 	}
 
 
@@ -288,7 +358,7 @@ namespace processing
 
 	shared_ptr<Filter> Test::get3x3Filter()
 	{
-		
+
 		static shared_ptr<Filter> filter = createFilter
 		(3,
 		{
@@ -297,14 +367,77 @@ namespace processing
 			1,1,1
 		}, 1.0
 		);
-		
-		
+		return filter;
+	}
+
+	shared_ptr<Filter> Test::get3x3Filter1()
+	{
+		static shared_ptr<Filter> filter = createFilter
+		(3,
+		{
+			1,-2,3,
+			4,-5,6,
+			9,8,-7
+		}, 1.0
+		);
+		return filter;
+	}
+
+	shared_ptr<Filter> Test::get3x3Filter2()
+	{
+		static shared_ptr<Filter> filter = createFilter
+		(3,
+		{
+			0.5f, 1, 1.5f,
+			2, 2.5f, 3,
+			3.5f, 4, 4.5f
+		}, 1.0
+		);
+		return filter;
+	}
+
+	shared_ptr<Filter> Test::get3x3Filter3()
+	{
+		static shared_ptr<Filter> filter = createFilter
+		(3,
+		{
+			-1,-2,-3,
+			-4,-5,-6,
+			-9,-8,-7
+		}, 1.0
+		);
+		return filter;
+	}
+
+	shared_ptr<Filter> Test::get3x3Filter4()
+	{
+		static shared_ptr<Filter> filter = createFilter
+		(3,
+		{
+			-1,2,-3,
+			-4,5,-6,
+			-9,8,10
+		}, 1.0
+		);
+		return filter;
+	}
+
+	shared_ptr<Filter> Test::get3x3Filter5()
+	{
+		static shared_ptr<Filter> filter = createFilter
+		(3,
+		{
+			5,6,7,
+			8,9,10,
+			11,12,13
+		}, 1.0
+		);
 		return filter;
 	}
 
 	shared_ptr<Filter> Test::get5x5Filter()
 	{
-		
+
 		static shared_ptr<Filter> filter = createFilter
 		(5,
 		{
@@ -313,9 +446,9 @@ namespace processing
 			6, 24, 36, 24,  6,
 			4, 16, 24, 16,  4,
 			1,  4,  6,  4,  1
-		}, 1.0/256.0
+		}, 1.0 / 256.0
 		);
-		
+
 		//const int size = 5*5;
 		//vector<float> filterValues(size);
 
@@ -344,7 +477,7 @@ namespace processing
 		vector<float> filterValues(size);
 
 		fill(filterValues.begin(), filterValues.end(), 1);
-		static shared_ptr<Filter> filter = createFilter(7,	filterValues, 1.0 / size);
+		static shared_ptr<Filter> filter = createFilter(7, filterValues, 1.0 / size);
 		return filter;
 	}
 
@@ -472,7 +605,7 @@ namespace processing
 
 	TestBuilder & TestBuilder::setFilters(vector<shared_ptr<Filter>> filters)
 	{
-		test_.filters_ = filters;
+		test_.filters_ = std::move(filters);
 		return *this;
 	}
 
@@ -484,7 +617,7 @@ namespace processing
 
 	TestBuilder& TestBuilder::setRunnables(vector<shared_ptr<Runnable>> runnables)
 	{
-		test_.runnables_ = runnables;
+		test_.runnables_ = std::move(runnables);
 		return *this;
 	}
 
@@ -494,9 +627,15 @@ namespace processing
 		return *this;
 	}
 
-	TestBuilder& TestBuilder::setImagePath(const string& path)
+	TestBuilder & TestBuilder::addImagePath(string imagePath)
 	{
-		test_.fileName_ = path;
+		test_.fileNames_.push_back(imagePath);
+		return *this;
+	}
+
+	TestBuilder & TestBuilder::setImagePaths(vector<string> imagePaths)
+	{
+		test_.fileNames_ = std::move(imagePaths);
 		return *this;
 	}
 
@@ -508,7 +647,7 @@ namespace processing
 
 	Test TestBuilder::build()
 	{
-		std::sort(test_.filters_.begin(), test_.filters_.end(), [](auto filter1, auto filter2) 
+		std::sort(test_.filters_.begin(), test_.filters_.end(), [](auto filter1, auto filter2)
 		{
 			return filter1->getWidth() < filter2->getWidth();
 		});

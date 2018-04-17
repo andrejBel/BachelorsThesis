@@ -14,7 +14,8 @@ using namespace cv;
 namespace processing 
 {
 
-	static const string INPUT_IMAGE_PATH = "input_img.jpg";
+	static const string INPUT_IMAGE_PATHS[] = { "input_img.jpg", "input_img small.jpg", "input_img skrabance.jpg", "input_img.jpg","input_img.jpg","input_img.jpg","input_img.jpg","input_img small.jpg","input_img small.jpg" };
+
 	class Filter;
 	class TestBuilder;
 	class Test
@@ -24,17 +25,14 @@ namespace processing
 
 		Test();
 		
-		vector<vector<shared_ptr<float>>> operator()();
-		vector<vector<shared_ptr<float>>> testForMannaged();
+		vector<vector<shared_ptr<float>>> testExtend();
 		vector<vector<shared_ptr<float>>> testCropped();
 		
+		void run();
 
 		static void testAlone(shared_ptr<Runnable> runnable, uint replications = 1);
-		static void testAloneForManaged(shared_ptr<Runnable> runnable, uint replications = 1);
-		static void testAgainstCpuMulticore(shared_ptr<Runnable> runnable, uint replications = 1);
-		static void testAgainstCpuSingleCore(shared_ptr<Runnable> runnable, uint replications = 1);
-		static void testAgainstEachOther(shared_ptr<Runnable> runnable1, shared_ptr<Runnable> runnable2, uint replications = 1, bool cropped = true);
-
+		static void testAgainstEachOther(shared_ptr<Runnable> runnable1, shared_ptr<Runnable> runnable2, uint replications = 1);
+		static void testAgainstCpu(shared_ptr<Runnable> runnable, uint replications = 1);
 
 		static void testAllAgainstCpu();
 
@@ -43,7 +41,7 @@ namespace processing
 		vector<shared_ptr<Filter>> filters_;
 		vector<shared_ptr<Runnable>> runnables_;
 		uint replications_;
-		string fileName_;
+		vector<string> fileNames_;
 		float epsilon_;
 	
 	public:
@@ -52,6 +50,11 @@ namespace processing
 		static shared_ptr<Filter> get1x1Filter();
 		
 		static shared_ptr<Filter> get3x3Filter();
+		static shared_ptr<Filter> Test::get3x3Filter1();
+		static shared_ptr<Filter> Test::get3x3Filter2();
+		static shared_ptr<Filter> Test::get3x3Filter3();
+		static shared_ptr<Filter> Test::get3x3Filter4();
+		static shared_ptr<Filter> Test::get3x3Filter5();
 
 		static shared_ptr<Filter> get5x5Filter();
 
@@ -92,7 +95,9 @@ namespace processing
 		TestBuilder& setReplications(uint replications);
 
 
-		TestBuilder& setImagePath(const string& path);
+		TestBuilder& addImagePath(string imagePath);
+
+		TestBuilder& setImagePaths(vector<string> imagePaths);
 
 
 		TestBuilder& setEpsilon(float epsilon);

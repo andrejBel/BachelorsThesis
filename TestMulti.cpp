@@ -1,22 +1,23 @@
 #include "TestMulti.h"
 #include "processing.h"
 #include "Filter.h"
-
+#include "MemoryPoolPinned.h"
 namespace processing 
 {
 	TestMulti::TestMulti(): 
-		epsilon_(0.01f),
+		epsilon_(2.0f),
 		replications_(1)
 	{}
 
 	vector<vector<shared_ptr<float>>> processing::TestMulti::testCropped()
 	{
+		
 		vector<vector<shared_ptr<float>>> results;
 		vector<shared_ptr<ImageFactory>> images(this->fileNames_.size());
-
+		shared_ptr<ImageFactory> im = make_shared<ImageFactory>(this->fileNames_[0]);
 		for (size_t i = 0; i < images.size(); i++)
 		{
-			images[i] = make_shared<ImageFactory>(this->fileNames_[i]);
+			images[i] = im;
 		}
 		pair<bool, string> check = controlInputForMultiConvolution(images, this->filters_);
 		if (check.first == false) 
@@ -24,6 +25,10 @@ namespace processing
 			cerr << check.second << endl;
 			return results;
 		}
+		std::sort(this->filters_.begin(), this->filters_.end(), [](vector<shared_ptr<Filter>>& first, vector<shared_ptr<Filter>>& second)
+		{
+			return first[0]->getWidth() < second[0]->getWidth();
+		});
 		TickMeter meter;
 		for (shared_ptr<Runnable> & runnable : runnables_)
 		{
@@ -74,8 +79,47 @@ namespace processing
 		return results;
 	}
 
+	void TestMulti::run()
+	{
+		if (runnables_.size() == 1)
+		{
+			shared_ptr<Runnable> runnable = runnables_[0];
+			if (!runnable->isMulti())
+			{
+				throw std::runtime_error(runnable->getDescription() + " is for simple convolution, not multi!");
+				return;
+			}
+			testCropped();
+		}
+		else if (runnables_.size() == 2)
+		{
+			auto runnable1 = runnables_[0];
+			auto runnable2 = runnables_[1];
+			if (!runnable1->isMulti())
+			{
+				throw std::runtime_error(runnable1->getDescription() + " is for simple convolution, not multi!");
+				return;
+			}
+			if (!runnable2->isMulti())
+			{
+				throw std::runtime_error(runnable2->getDescription() + " is for simple convolution, not multi!");
+				return;
+			}
+			testCropped();
+		}
+		else
+		{
+			throw std::runtime_error("Too many runables, maximum is 2");
+		}
+	}
+
 	void TestMulti::testAlone(shared_ptr<Runnable> runnable, uint replications)
 	{
+		if (!runnable->isMulti())
+		{
+			std::cerr << runnable->getDescription() + " is not for multi nonvolution";
+			return;
+		}
 		TestMultiBuilder builder;
 		
 			
@@ -101,7 +145,7 @@ namespace processing
 			}
 			for (int i = 0; i < imageCount; i++)
 			{
-				builder.addImagePath(INPUT_IMAGE_PATH);
+				builder.addImagePath(INPUT_IMAGE_PATHS[0]);
 			}
 			builder
 			.addRunnable(runnable)
@@ -111,20 +155,64 @@ namespace processing
 
 	void TestMulti::testAgainstEachOther(shared_ptr<Runnable> runnable1, shared_ptr<Runnable> runnable2, uint replications)
 	{
+		if (!runnable1->isMulti())
+		{
+			std::cerr << runnable1->getDescription() + " is not for multi nonvolution";
+			return;
+		}
+		if (!runnable2->isMulti())
+		{
+			std::cerr << runnable2->getDescription() + " is not for multi nonvolution";
+			return;
+		}
 		TestMultiBuilder builder;
+		/*
 		builder
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get1x1Filter(),Test::get1x1Filter(),Test::get1x1Filter(), Test::get1x1Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get3x3Filter(),Test::get3x3Filter(),Test::get3x3Filter(), Test::get3x3Filter() }))
 			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get5x5Filter(),Test::get5x5Filter(),Test::get5x5Filter(), Test::get5x5Filter() }))
-			.setImagePaths(vector<string>({ INPUT_IMAGE_PATH, INPUT_IMAGE_PATH, INPUT_IMAGE_PATH, INPUT_IMAGE_PATH }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get7x7Filter(),Test::get7x7Filter(),Test::get7x7Filter(), Test::get7x7Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get9x9Filter(),Test::get9x9Filter(),Test::get9x9Filter(), Test::get9x9Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get11x11Filter(),Test::get11x11Filter(),Test::get11x11Filter(), Test::get11x11Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get13x13Filter(),Test::get13x13Filter(),Test::get13x13Filter(), Test::get13x13Filter() }))
+			.addFilterGroup(vector<shared_ptr<Filter>>({ Test::get15x15Filter(),Test::get15x15Filter(),Test::get15x15Filter(), Test::get15x15Filter() }))
+			*/
+		
+			const int imageSize = 128;
+				for (int i = 0; i < imageSize; i++)
+				{
+					builder.addImagePath(INPUT_IMAGE_PATHS[0]);
+				}
+				for (int k = 0; k < 50; k++)
+				{
+					{
+						vector<shared_ptr<Filter>> fg;
+						for (int i = 0; i < imageSize; i++)
+						{
+							fg.push_back(Test::get3x3Filter());
+						}
+						builder.addFilterGroup(fg);
+					}
+					{
+						vector<shared_ptr<Filter>> fg;
+						for (int i = 0; i < imageSize; i++)
+						{
+							fg.push_back(Test::get3x3Filter1());
+						}
+						builder.addFilterGroup(fg);
+					}
+					{
+						vector<shared_ptr<Filter>> fg;
+						for (int i = 0; i < imageSize; i++)
+						{
+							fg.push_back(Test::get3x3Filter3());
+						}
+						builder.addFilterGroup(fg);
+					}
+				}
+		
+			//.setImagePaths({ INPUT_IMAGE_PATH, INPUT_IMAGE_PATH, INPUT_IMAGE_PATH ,INPUT_IMAGE_PATH })
+			builder
 			.addRunnable(runnable1)
 			.addRunnable(runnable2)
 			.setReplications(replications);

@@ -21,6 +21,8 @@ namespace processing {
 		TestMulti();
 		
 		vector<vector<shared_ptr<float>>> testCropped();
+		void run();
+
 		static void testAlone(shared_ptr<Runnable> runnable, uint replications = 1);
 		static void testAgainstEachOther(shared_ptr<Runnable> runnable1, shared_ptr<Runnable> runnable2, uint replications = 1);
 
