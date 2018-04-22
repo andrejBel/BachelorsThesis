@@ -90,13 +90,22 @@ namespace processing
 #pragma unroll TILE_SIZE_Y
 				for (int k = 0; k < TILE_SIZE_Y; k++)
 				{
+#if TILE_SIZE_X == 1
+					shared[j + k][i] = inputImage[IMAD(positionShared.y + j + k, inputPitch, positionShared.x + i)];
+#elif TILE_SIZE_X == 2
+					* ((float2 *)&shared[j + k][i]) = *(float2 *)(inputImage + IMAD(positionShared.y + j + k, inputPitch, positionShared.x + i));
+#elif TILE_SIZE_X == 3
+					* ((float3 *)&shared[j + k][i]) = *(float3 *)(inputImage + IMAD(positionShared.y + j + k, inputPitch, positionShared.x + i));
+#elif TILE_SIZE_X == 4
+					* ((float4 *)&shared[j + k][i]) = *(float4 *)(inputImage + IMAD(positionShared.y + j + k, inputPitch, positionShared.x + i));
+#else
 #pragma unroll TILE_SIZE_X
 					for (int l = 0; l < TILE_SIZE_X; l++)
 					{
 						shared[j + k][i + l] = inputImage[IMAD(positionShared.y + j + k, inputPitch, positionShared.x + i + l)];
 					}
+#endif
 				}
-				
 			}
 		}
 		__syncthreads();
@@ -123,11 +132,24 @@ namespace processing
 #pragma unroll TILE_SIZE_Y
 		for (int k = 0; k < TILE_SIZE_Y; k++)
 		{
+#if TILE_SIZE_X == 1
+			* (outputImage + IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x)) = (results[k * TILE_SIZE_Y]);
+#elif TILE_SIZE_X == 2
+			* ((float2 *)(outputImage + IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x))) = *((float2 *)(&results[k * TILE_SIZE_Y]));
+#elif TILE_SIZE_X == 3
+			* ((float3*)(outputImage + IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x))) = *((float3 *)&results[k * TILE_SIZE_Y]);
+#elif TILE_SIZE_X == 4
+			* (float4*)(outputImage + IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x)) = *((float4 *)&results[k * TILE_SIZE_Y]);
+#else
 #pragma unroll TILE_SIZE_X
 			for (int l = 0; l < TILE_SIZE_X; l++)
 			{
 				outputImage[IMAD(absoluteImagePosition.y + k, outputPitch, absoluteImagePosition.x + l)] = results[k * TILE_SIZE_Y + l];
 			}
+#endif 
+
+
+
 		}
 		
 	}
@@ -160,20 +182,31 @@ namespace processing
 			{
 				switch (filter->getWidth())
 				{
-						CONVOLUTIONSHARED(1, 32, 4)
-						CONVOLUTIONSHARED(3, 32, 4)
-						CONVOLUTIONSHARED(5, 32, 4)
-						CONVOLUTIONSHARED(7, 32, 4) // najlepsie CONVOLUTIONSHARED(7, 32, 4) 2x2
-						CONVOLUTIONSHARED(9, 32, 4) // najlepsie CONVOLUTIONSHARED(9, 32, 4) 2x2
-						CONVOLUTIONSHARED(11, 32, 8) // najlepsie CONVOLUTIONSHARED(11, 32, 8) 2x2
-						CONVOLUTIONSHARED(13, 32, 10) // najlepsie CONVOLUTIONSHARED(11, 32, 8) 2x2
-						CONVOLUTIONSHARED(15, 32, 10) // najlepsie CONVOLUTIONSHARED(11, 32, 8) 2x2
-					  /*
-						  3X3
-						  CONVOLUTIONSHARED(11, 32, 7)
-						  CONVOLUTIONSHARED(13, 32, 6)
-						  CONVOLUTIONSHARED(15, 32, 8)
-					 */
+					//2x2
+#if TILE_SIZE_X == 2
+#if TILE_SIZE_Y == 2
+					CONVOLUTIONSHARED(1, 32, 4)
+					CONVOLUTIONSHARED(3, 32, 8)
+					CONVOLUTIONSHARED(5, 32, 8)
+					CONVOLUTIONSHARED(7, 32, 8)
+					CONVOLUTIONSHARED(9, 32, 8)
+					CONVOLUTIONSHARED(11, 32, 8)
+					CONVOLUTIONSHARED(13, 32, 10)
+					CONVOLUTIONSHARED(15, 32, 10)
+#endif
+#endif
+#if TILE_SIZE_X == 3
+#if TILE_SIZE_Y == 3
+					CONVOLUTIONSHARED(1, 32, 4)
+					CONVOLUTIONSHARED(3, 32, 8)
+					CONVOLUTIONSHARED(5, 32, 8)
+					CONVOLUTIONSHARED(7, 32, 8)
+					CONVOLUTIONSHARED(9, 32, 8)
+					CONVOLUTIONSHARED(11, 32, 7)
+					CONVOLUTIONSHARED(13, 32, 6)
+					CONVOLUTIONSHARED(15, 32, 8)
+#endif
+#endif
 				default:
 					std::cerr << "Filter with width: " << filter->getWidth() << " not supported!" << endl;
 					break;

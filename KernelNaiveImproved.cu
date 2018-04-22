@@ -64,17 +64,6 @@ case FILTERWIDTH:\
 	}
 
 
-	__host__ __forceinline__ int KernelNaiveImproved::indexToCopyToMirrored(int index, int numCols, int numRows, const int filterWidth)
-	{
-		int indexX = (index % (numCols + (filterWidth / 2) * 2)) - (filterWidth / 2);
-		int indexY = (index / (numCols + (filterWidth / 2) * 2)) - (filterWidth / 2);
-		indexX = std::min(std::max(indexX, 0), numCols - 1);
-		indexY = std::min(std::max(indexY, 0), numRows - 1);
-		return indexY * numCols + indexX;
-	}
-
-
-
 	KernelNaiveImproved::KernelNaiveImproved() : SimpleRunnable(false)
 	{
 	}

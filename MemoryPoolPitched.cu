@@ -9,6 +9,7 @@
 #include <cuda_runtime_api.h>
 
 #include <iostream>
+#include <algorithm>
 namespace processing 
 {
 	
@@ -25,12 +26,35 @@ namespace processing
 		return pool;
 	}
 
-	MemoryPoolPitched::MemoryPoolPitched(uint memorySize) : memory_(memorySize)
+	void MemoryPoolPitched::realoc(const int maxImageWidth, const int maxImageHeight)
+	{
+		if (maxImageWidth > maxImageWidth_ || maxImageHeight >  maxImageHeight_) 
+		{
+			maxImageWidth_ = std::max(maxImageWidth_, maxImageWidth);
+			maxImageHeight_ = std::max(maxImageHeight_, maxImageHeight);
+			float * memory = nullptr;
+			for (uint i = 0; i < memory_.size(); i++)
+			{
+				if (memory_[i])
+				{
+					checkCudaErrors(cudaFree(memory_[i]));
+				}
+				checkCudaErrors(cudaMallocPitch<float>(&memory, &pitch_, (maxImageWidth_ + IMAGE_ADDITIONAL_PIXELS) * sizeof(float), maxImageHeight_ + IMAGE_ADDITIONAL_PIXELS));
+				memory_[i] = memory;
+			}
+		}
+		
+	}
+
+	MemoryPoolPitched::MemoryPoolPitched(uint memorySize) : 
+		memory_(memorySize, nullptr),
+		maxImageWidth_(MAX_IMAGE_WIDTH ),
+		maxImageHeight_(MAX_IMAGE_HEIGHT)
 	{
 		float * memory = nullptr;
 		for (uint i = 0; i < memorySize; i++)
 		{
-			checkCudaErrors(cudaMallocPitch<float>(&memory, &pitch_, (MAX_IMAGE_WIDTH + 300) * sizeof(float), MAX_IMAGE_HEIGHT + 300));
+			checkCudaErrors(cudaMallocPitch<float>(&memory, &pitch_, (maxImageWidth_ + IMAGE_ADDITIONAL_PIXELS) * sizeof(float), maxImageHeight_ + IMAGE_ADDITIONAL_PIXELS));
 			memory_[i] = memory;
 		}
 	}
@@ -39,7 +63,7 @@ namespace processing
 	{
 		for (float * memory : memory_ )
 		{
-			cudaFree(memory);
+			checkCudaErrors(cudaFree(memory));
 		}
 	}
 

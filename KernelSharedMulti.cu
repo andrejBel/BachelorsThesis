@@ -296,19 +296,35 @@ namespace processing
 	{
 		const short MAX_SMALL_TILE_DIMENION_X = 2;
 		const short MAX_SMALL_TILE_DIMENION_Y = 2;
-		size_t pitchInput = MemoryPoolPitched::getMemoryPoolPitchedForOutput().getPitch();
-		size_t pitchOutput = MemoryPoolPitched::getMemoryPoolPitchedForInput().getPitch();
+		int maxImageWidth = 0;
+		int maxImageHeight = 0;
+		for_each(images.begin(), images.end(), [&maxImageWidth, &maxImageHeight](shared_ptr<ImageFactory> image)
+		{
+			if (image->getNumCols() > maxImageWidth)
+			{
+				maxImageWidth = image->getNumCols();
+			}
+			if (image->getNumRows() > maxImageHeight)
+			{
+				maxImageHeight = image->getNumRows();
+			}
+		});
+		MemoryPoolPitched::getMemoryPoolPitchedForInput().realoc(maxImageWidth, maxImageHeight);
+		MemoryPoolPitched::getMemoryPoolPitchedForOutput().realoc(maxImageWidth, maxImageHeight);
+
+		size_t pitchInput = MemoryPoolPitched::getMemoryPoolPitchedForInput().getPitch();
+		size_t pitchOutput = MemoryPoolPitched::getMemoryPoolPitchedForOutput().getPitch();
 		int numCols = images[0]->getNumCols(); //x
 		int numRows = images[0]->getNumRows(); //y
 		int colsForGridX = CEIL(numCols, MAX_SMALL_TILE_DIMENION_X);
 		int rowsForGridY = CEIL(numRows, MAX_SMALL_TILE_DIMENION_Y);
 		size_t pixels = numCols * numRows;
-		vector<float *> inputImagesDevice(PITCHED_MEMORY_BUFFER_SIZE_OUTPUT);
-		for (int i = 0; i < PITCHED_MEMORY_BUFFER_SIZE_OUTPUT; i++)
+		vector<float *> inputImagesDevice(PITCHED_MEMORY_BUFFER_SIZE_INPUT);
+		for (int i = 0; i < PITCHED_MEMORY_BUFFER_SIZE_INPUT; i++)
 		{
-			inputImagesDevice[i] = MemoryPoolPitched::getMemoryPoolPitchedForOutput().getMemory()[i];
+			inputImagesDevice[i] = MemoryPoolPitched::getMemoryPoolPitchedForInput().getMemory()[i];
 		}
-		float * deviceGrayImageOut = MemoryPoolPitched::getMemoryPoolPitchedForInput().getMemory()[0];
+		float * deviceGrayImageOut = MemoryPoolPitched::getMemoryPoolPitchedForOutput().getMemory()[0];
 
 
 
@@ -318,10 +334,10 @@ namespace processing
 
 
 
-		for (int i = 0; i < imageSize; i += PITCHED_MEMORY_BUFFER_SIZE_OUTPUT)
+		for (int i = 0; i < imageSize; i += PITCHED_MEMORY_BUFFER_SIZE_INPUT)
 		{
 			int startOfImages = i;
-			int endOfImages = std::min(i + PITCHED_MEMORY_BUFFER_SIZE_OUTPUT - 1, imageSize - 1);
+			int endOfImages = std::min(i + PITCHED_MEMORY_BUFFER_SIZE_INPUT - 1, imageSize - 1);
 			int usedImages = endOfImages - startOfImages + 1;
 
 			for (int indexImages = startOfImages, indexDeviceInput = 0; indexImages <= endOfImages; ++indexImages, ++indexDeviceInput)

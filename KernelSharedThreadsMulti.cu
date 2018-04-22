@@ -558,6 +558,21 @@ namespace processing
 
 		void preprocess(CudaStream& stream, vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters)
 		{
+			int maxImageWidth = 0;
+			int maxImageHeight = 0;
+			for_each(images.begin(), images.end(), [&maxImageWidth, &maxImageHeight](shared_ptr<ImageFactory> image)
+			{
+				if (image->getNumCols() > maxImageWidth)
+				{
+					maxImageWidth = image->getNumCols();
+				}
+				if (image->getNumRows() > maxImageHeight)
+				{
+					maxImageHeight = image->getNumRows();
+				}
+			});
+			MemoryPoolPitched::getMemoryPoolPitchedForInput().realoc(maxImageWidth, maxImageHeight);
+			MemoryPoolPitched::getMemoryPoolPitchedForOutput().realoc(maxImageWidth, maxImageHeight);
 			for (int i = 0; i < PITCHED_MEMORY_BUFFER_SIZE_OUTPUT; i++)
 			{
 				PITCHED_MEMORY_BUFFER_HOST.memory_[i] = MemoryPoolPitched::getMemoryPoolPitchedForOutput().getMemory()[i];

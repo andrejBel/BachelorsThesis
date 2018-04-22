@@ -26,7 +26,6 @@ namespace processing
 		}
 
 	private:
-		__host__ __forceinline__ int indexToCopyToMirrored(int index, int numCols, int numRows, const int filterWidth);
 
 
 	};

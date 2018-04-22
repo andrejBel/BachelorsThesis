@@ -32,12 +32,17 @@ namespace processing
 		{
 			return pitch_;
 		}
+
+		void realoc(const int maxImageWidth,const int maxImageHeight);
 		
 	private:
 		MemoryPoolPitched(uint memorySize);
 		~MemoryPoolPitched();
+		
 		size_t pitch_;
 		vector<float *> memory_;
+		int maxImageWidth_;
+		int maxImageHeight_;
 
 	};
 

@@ -405,18 +405,40 @@ namespace processing
 		0,//2
 		PITCHED_MEMORY_BUFFER_SIZE_OUTPUT > 10 ? 10 : PITCHED_MEMORY_BUFFER_SIZE_OUTPUT - 1,//3
 		0,//4
-		6,//PITCHED_MEMORY_BUFFER_SIZE_OUTPUT,//5
+		PITCHED_MEMORY_BUFFER_SIZE_OUTPUT > 10 ? 10 : PITCHED_MEMORY_BUFFER_SIZE_OUTPUT - 1,//5
 		0,//6
-		3,//7
+		4,//7
 		0,//8
-		2,//PITCHED_MEMORY_BUFFER_SIZE_OUTPUT,//9
+		3,//PITCHED_MEMORY_BUFFER_SIZE_OUTPUT,//9
 		0,//10
-		1, //PITCHED_MEMORY_BUFFER_SIZE_OUTPUT,//11
+		2, //PITCHED_MEMORY_BUFFER_SIZE_OUTPUT,//11
 		0,//12
 		1,//13
 		0,//14
 		1//15
 	};
+
+	/*
+	static const vector<int> jobLimits =
+	{
+		0, //0
+		PITCHED_MEMORY_BUFFER_SIZE_OUTPUT > 10 ? 10 : PITCHED_MEMORY_BUFFER_SIZE_OUTPUT - 1,//1
+		0,//2
+		PITCHED_MEMORY_BUFFER_SIZE_OUTPUT > 10 ? 10 : PITCHED_MEMORY_BUFFER_SIZE_OUTPUT - 1,//3
+		0,//4
+		6,//PITCHED_MEMORY_BUFFER_SIZE_OUTPUT,//5
+		0,//6
+		3,//7
+		0,//8
+		3,//PITCHED_MEMORY_BUFFER_SIZE_OUTPUT,//9
+		0,//10
+		2, //PITCHED_MEMORY_BUFFER_SIZE_OUTPUT,//11
+		0,//12
+		1,//13
+		0,//14
+		1//15
+	};
+	*/
 
 	CudaStream streams[3];
 	std::queue<Job> jobs_;
@@ -437,6 +459,21 @@ namespace processing
 
 	void preprocess(CudaStream& stream, vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters)
 	{
+		int maxImageWidth = 0;
+		int maxImageHeight = 0;
+		for_each(images.begin(), images.end(), [&maxImageWidth, &maxImageHeight](shared_ptr<ImageFactory> image) 
+		{
+			if (image->getNumCols() > maxImageWidth) 
+			{
+				maxImageWidth = image->getNumCols();
+			}
+			if (image->getNumRows() > maxImageHeight) 
+			{
+				maxImageHeight = image->getNumRows();
+			}
+		});
+		MemoryPoolPitched::getMemoryPoolPitchedForInput().realoc(maxImageWidth, maxImageHeight);
+		MemoryPoolPitched::getMemoryPoolPitchedForOutput().realoc(maxImageWidth, maxImageHeight);
 		for (int i = 0; i < PITCHED_MEMORY_BUFFER_SIZE_OUTPUT; i++)
 		{
 			PITCHED_MEMORY_BUFFER_HOST.memory_[i] = MemoryPoolPitched::getMemoryPoolPitchedForOutput().getMemory()[i];

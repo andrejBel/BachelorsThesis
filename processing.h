@@ -83,7 +83,7 @@ namespace processing
 			unique_lock<mutex> lock(mutex_);
 			if (inReturn > used_)
 			{
-				throw std::runtime_error("Requirment bigger than buffer");
+				throw std::runtime_error("Returning more than given");
 			}
 			start_ += inReturn;
 			start_ %= N;
@@ -103,6 +103,8 @@ namespace processing
 
 	static constexpr uint MAX_IMAGE_WIDTH = 2000;
 	static constexpr uint MAX_IMAGE_HEIGHT = 2000;
+	static constexpr uint IMAGE_ADDITIONAL_PIXELS = 300;
+
 	static constexpr size_t MAX_IMAGE_RESOLUTION = MAX_IMAGE_WIDTH*MAX_IMAGE_HEIGHT;
 	static constexpr int PINNED_MEMORY_BUFFER_SIZE_INPUT = 10;
 	static constexpr int PINNED_MEMORY_BUFFER_SIZE_OUTPUT = 40;
@@ -241,12 +243,13 @@ namespace processing
 	pair<bool, string> controlInputForMultiConvolution(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters);
 
 	template<typename function>
-	void timeIt(function function, const string&  description = "")
+	float timeIt(function function, const string&  description = "")
 	{
 		auto begin = std::chrono::steady_clock::now();
 		function();
 		auto end = std::chrono::steady_clock::now();
 		std::cout << "Time difference " << description << ": " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << std::endl;
+		return std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
 	}
 
 	struct CudaStream
