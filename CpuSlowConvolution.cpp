@@ -9,9 +9,15 @@
 #define ACCEPTFILTER(FILTERWIDTH)\
 case FILTERWIDTH:\
 {\
-	timeIt([&] {\
-		convolution<FILTERWIDTH>(*image.get(), filter->getFilter(), result.get()); \
-	}, getDescription() + " filterWidth: " + to_string(FILTERWIDTH)); \
+	double time(0);\
+	const int replications = 10;\
+	for (size_t i = 0; i < replications; i++)\
+	{\
+		time += timeIt([&] {\
+			convolution<FILTERWIDTH>(*image.get(), filter->getFilter(), result.get()); \
+		}, getDescription() + " filterWidth: " + to_string(FILTERWIDTH)); \
+	}\
+cout << "Replications: " << replications << ", time: " << time / replications << endl;\
 	break;\
 }
 

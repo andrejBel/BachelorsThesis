@@ -28,12 +28,10 @@ namespace processing
 
 		DELETECOPYASSINGMENT(Runnable)
 
-		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) {}
+			virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) = 0;
 
-		virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results) 
-		{
+			virtual void run(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters, vector<shared_ptr<float>>& results) = 0;
 		
-		}
 
 		// daj prec toto
 		virtual void run(ImageFactory& image, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results) {};
@@ -42,12 +40,12 @@ namespace processing
 
 		virtual ~Runnable()	{}
 
-		inline const bool isMulti() const
+		inline bool isMulti() const
 		{
 			return multi_;
 		}
 
-		inline const bool isCropped() const 
+		inline bool isCropped() const 
 		{
 			return cropped_;
 		}
