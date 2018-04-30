@@ -1,12 +1,13 @@
 #include "ImageFactory.h"
 #include <iostream>
 #include "MemoryPoolPinned.h"
+#include "MemoryPoolManaged.h"
 
 namespace processing 
 {
 
-	ImageFactory::ImageFactory(const string & fileName, const bool pinnedMemory) :
-		pinnedMemory_(pinnedMemory)
+	ImageFactory::ImageFactory(const string & fileName, MEMORY_TYPE type) :
+		memoryType_(type)
 	{
 		imread(fileName, CV_LOAD_IMAGE_UNCHANGED).copyTo(imageGrayInput_);
 		if (imageGrayInput_.empty()) {
@@ -18,12 +19,29 @@ namespace processing
 			cvtColor(imageGrayInput_, imageGrayInput_, CV_BGR2GRAY);
 		}
 		imageGrayInput_.convertTo(imageGrayInput_, CV_32FC1);
-		if (pinnedMemory_)
+		switch (type)
+		{
+		case MEMORY_TYPE::MANAGED: 
+		{
+			const size_t numPixels = getNumPixels();
+			imageGrayInputFloat_ = MemoryPoolManaged::getMemoryPoolManaged().acquireMemory(numPixels);
+			std::copy((float *)imageGrayInput_.data, (float *)imageGrayInput_.data + numPixels, imageGrayInputFloat_.get());
+			break;
+		}
+		case MEMORY_TYPE::PINNED:
 		{
 			const size_t numPixels = getNumPixels();
 			imageGrayInputFloat_ = MemoryPoolPinned::getMemoryPoolPinnedForInput().acquireMemory(numPixels, true);
 			std::copy((float *)imageGrayInput_.data, (float *)imageGrayInput_.data + numPixels, imageGrayInputFloat_.get());
+			break;
 		}
+		case MEMORY_TYPE::NORMAL:
+			break;
+		default:
+			throw std::runtime_error("Unknown memory type");
+			break;
+		}
+
 	}
 
 	void ImageFactory::saveImage(const string & filename, const ImageFactory & factory)

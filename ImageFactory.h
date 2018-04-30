@@ -13,10 +13,17 @@ using namespace cv;
 
 namespace processing 
 {
+	enum class MEMORY_TYPE
+	{
+		MANAGED,
+		PINNED,
+		NORMAL
+	};
+
 	class ImageFactory
 	{
 	public:
-		ImageFactory(const string& fileName, const bool pinnedMemory = true);
+		ImageFactory(const string& fileName, MEMORY_TYPE type = MEMORY_TYPE::PINNED);
 
 		ImageFactory(const ImageFactory& other) = delete;
 
@@ -24,7 +31,7 @@ namespace processing
 
 		inline float* getInputGrayPointerFloat() const
 		{
-			return pinnedMemory_ ? imageGrayInputFloat_.get() : reinterpret_cast<float *>(imageGrayInput_.data);
+			return memoryType_ == MEMORY_TYPE::NORMAL ? reinterpret_cast<float *>(imageGrayInput_.data) :  imageGrayInputFloat_.get();
 		}
 
 		inline int getNumRows() const
@@ -48,7 +55,7 @@ namespace processing
 
 	private:
 		cv::Mat imageGrayInput_;
-		const bool pinnedMemory_;
+		MEMORY_TYPE memoryType_;
 		shared_ptr<float> imageGrayInputFloat_;
 
 

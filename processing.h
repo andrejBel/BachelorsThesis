@@ -32,6 +32,8 @@ namespace processing
 	class Filter;
 	class ImageFactory;
 
+
+
 	template <typename int N>
 	struct Box
 	{
@@ -115,8 +117,9 @@ namespace processing
 	static constexpr int MAXFILTERWIDTH = 15;
 	
 	
-	static __constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH * PITCHED_MEMORY_BUFFER_SIZE_OUTPUT];
-	static __constant__ Box<PITCHED_MEMORY_BUFFER_SIZE_OUTPUT> PITCHED_MEMORY_BUFFER_DEVICE; 
+	static __constant__ float FILTERCUDA[MAXFILTERWIDTH * MAXFILTERWIDTH * (PITCHED_MEMORY_BUFFER_SIZE_OUTPUT + PITCHED_MEMORY_BUFFER_SIZE_INPUT)];
+	static __constant__ Box<PITCHED_MEMORY_BUFFER_SIZE_OUTPUT> PITCHED_MEMORY_BUFFER_DEVICE;
+	static __constant__ float*  MANAGEDOUTPUT[10] ;
 	static __device__ __constant__ size_t INPUT_PITCH_DEVICE[1];
 	static __device__ __constant__ size_t OUTPUT_PITCH_DEVICE[1];
 
@@ -243,7 +246,7 @@ namespace processing
 	pair<bool, string> controlInputForMultiConvolution(vector<shared_ptr<ImageFactory>>& images, vector<vector<shared_ptr<Filter>>>& filters);
 
 	template<typename function>
-	float timeIt(function function, const string&  description = "")
+	auto timeIt(function function, const string&  description = "")
 	{
 		auto begin = std::chrono::steady_clock::now();
 		function();
