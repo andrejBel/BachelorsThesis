@@ -68,6 +68,22 @@ namespace processing
 		return result != map.end() ? result->second : Factory::TestType::NONE;
 	}
 
+	Factory::OutputType Factory::fromStringToOutputType(string text)
+	{
+		static map<string, Factory::OutputType> map
+		(
+		{
+			{ "image", Factory::OutputType::IMAGE },
+			{ "textfile", Factory::OutputType::TEXTFILE },
+			{ "none", Factory::OutputType::NONE }
+		}
+		);
+		std::transform(text.begin(), text.end(), text.begin(), ::tolower);
+		text.erase(remove(text.begin(), text.end(), ' '), text.end());
+		auto result = map.find(text);
+		return result != map.end() ? result->second : Factory::OutputType::NONE;
+	}
+
 	Factory::TemplateFactory<Factory::SimpleConvolution>& Factory::getSimpleConvolutionFactory()
 	{
 		static TemplateFactory<Factory::SimpleConvolution> factory

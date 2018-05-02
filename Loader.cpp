@@ -11,6 +11,7 @@ void Loader::load(const string & filename)
 	{
 		if (inputFile.is_open())
 		{
+			readLine(inputFile); // convolution type
 			insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 			Factory::TypeOfConvolution convolutionType = Factory::fromStringToConvolutionType(tokanizer.getNextToken());
 			switch (convolutionType)
@@ -18,6 +19,7 @@ void Loader::load(const string & filename)
 			case processing::Factory::TypeOfConvolution::SIMPLE_CONVOLUTION:
 			{
 				TestBuilder simpleConvolutionBuilder;
+				readLine(inputFile); // test type
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 				string testTypeString = tokanizer.getNextToken();
 				Factory::TestType testType = Factory::fromStringToTestType(testTypeString);
@@ -36,6 +38,7 @@ void Loader::load(const string & filename)
 				default:
 					break;
 				}
+				readLine(inputFile); // kernels aka runnables
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer); // our runnable
 				for (int runnableIndex = 0; runnableIndex < numberOfConvoltutionRunnable; runnableIndex++)
 				{
@@ -57,7 +60,7 @@ void Loader::load(const string & filename)
 						throw::std::runtime_error("Unable to read runnable type");
 					}
 				}
-
+				readLine(inputFile); // epsilon
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 				auto epsilon = tokanizer.tryGetNextFloat();
 				if (epsilon)
@@ -68,10 +71,21 @@ void Loader::load(const string & filename)
 				{
 					throw std::runtime_error("Unable to read epsilon");
 				}
+				readLine(inputFile); // output
+				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
+				string stringOutputType = tokanizer.getNextToken();
+				Factory::OutputType outputType =  Factory::fromStringToOutputType(stringOutputType);
+				simpleConvolutionBuilder.setOutputType(outputType);
+				if (outputType == Factory::OutputType::TEXTFILE) 
+				{
+					simpleConvolutionBuilder.setOutputPath(tokanizer.getNextToken());
+				}
+				readLine(inputFile); // number of images
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 				auto numberOfPictures = tokanizer.tryGetNextInt();
 				if (numberOfPictures)
 				{
+					readLine(inputFile); // image paths
 					for (int i = 0; i < numberOfPictures.result_; i++)
 					{
 						insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
@@ -99,22 +113,24 @@ void Loader::load(const string & filename)
 				{
 					throw std::runtime_error("Unable to read number of images");
 				}
+				readLine(inputFile); // number of filters
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 				auto numberOfFilters = tokanizer.tryGetNextInt();
 				if (numberOfFilters)
 				{
 					for (int filterIndex = 0; filterIndex < numberOfFilters.result_; filterIndex++)
 					{
+						readLine(inputFile); // FILTERS WIDTH | FILTER MULTIPLIER
 						insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 						auto filterWidth = tokanizer.tryGetNextInt();
+						auto multiplier = tokanizer.tryGetNextFloat();
 						if (filterWidth)
 						{
-							insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
-							auto multiplier = tokanizer.tryGetNextFloat();
 							Tokanizer::TokanizerResult<float> filterValue;
 							vector<float> filterValues;
 							if (multiplier)
 							{
+								readLine(inputFile); // FILTER values
 								for (int filterLine = 0; filterLine < filterWidth.result_; ++filterLine)
 								{
 									insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
@@ -155,6 +171,7 @@ void Loader::load(const string & filename)
 			case processing::Factory::TypeOfConvolution::MULTI_CONVOLUTION:
 			{
 				TestMultiBuilder multiConvolutionBuilder;
+				readLine(inputFile); // test type
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 				string testTypeString = tokanizer.getNextToken();
 				Factory::TestType testType = Factory::fromStringToTestType(testTypeString);
@@ -173,6 +190,7 @@ void Loader::load(const string & filename)
 				default:
 					break;
 				}
+				readLine(inputFile); // runnables
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer); // our runnable
 				for (int runnableIndex = 0; runnableIndex < numberOfConvoltutionRunnable; runnableIndex++)
 				{
@@ -194,7 +212,7 @@ void Loader::load(const string & filename)
 						throw::std::runtime_error("Unable to read runnable type");
 					}
 				}
-
+				readLine(inputFile); // epsilon
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 				auto epsilon = tokanizer.tryGetNextFloat();
 				if (epsilon)
@@ -205,10 +223,21 @@ void Loader::load(const string & filename)
 				{
 					throw std::runtime_error("Unable to read epsilon");
 				}
+				readLine(inputFile); // output
+				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
+				string stringOutputType = tokanizer.getNextToken();
+				Factory::OutputType outputType = Factory::fromStringToOutputType(stringOutputType);
+				multiConvolutionBuilder.setOutputType(outputType);
+				if (outputType == Factory::OutputType::TEXTFILE)
+				{
+					multiConvolutionBuilder.setOutputPath(tokanizer.getNextToken());
+				}
+				readLine(inputFile); // number of pictures
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 				auto numberOfPictures = tokanizer.tryGetNextInt();
 				if (numberOfPictures)
 				{
+					readLine(inputFile); // image paths
 					for (int i = 0; i < numberOfPictures.result_; i++)
 					{
 						insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
@@ -236,25 +265,30 @@ void Loader::load(const string & filename)
 				{
 					throw std::runtime_error("Unable to read number of images");
 				}
+				readLine(inputFile); // filter group size
 				insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 				auto numberOfFilterGroups = tokanizer.tryGetNextInt();
 				if (numberOfFilterGroups)
 				{
 					for (int filterGroupIndex = 0; filterGroupIndex < numberOfFilterGroups.result_; filterGroupIndex++)
 					{
+						readLine(inputFile); // line to separate filter groups
 						vector<shared_ptr<Filter>> filterGroup;
+						readLine(inputFile); // filter width
 						insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 						auto filterWidth = tokanizer.tryGetNextInt();
 						if (filterWidth)
 						{
 							for (int filterIndex = 0; filterIndex < numberOfPictures.result_; filterIndex++)
 							{
+								readLine(inputFile); // multiplier
 								insertLineFromStreamIntoTokanizer(inputFile, tokanizer);
 								auto multiplier = tokanizer.tryGetNextFloat();
 								Tokanizer::TokanizerResult<float> filterValue;
 								vector<float> filterValues;
 								if (multiplier)
 								{
+									readLine(inputFile); // filter values
 									for (int filterLine = 0; filterLine < filterWidth.result_; ++filterLine)
 									{
 										insertLineFromStreamIntoTokanizer(inputFile, tokanizer);

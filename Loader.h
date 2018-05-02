@@ -27,7 +27,19 @@ inline void insertLineFromStreamIntoTokanizer(ifstream& stream, Tokanizer& tokan
 	{
 		throw std::runtime_error("Unexpected end of file");
 	}
+}
 
+inline void readLine(ifstream& stream) 
+{
+	static string line;
+	if (getline(stream, line))
+	{
+		cout << line << endl;
+	}
+	else
+	{
+		throw std::runtime_error("Unexpected end of file");
+	}
 }
 
 class Loader

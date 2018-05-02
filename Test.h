@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "opencv2/core/utility.hpp"
 #include "Runnable.h"
-
+#include "Factory.h"
 
 using namespace std;
 using namespace cv;
@@ -14,10 +14,13 @@ using namespace cv;
 namespace processing 
 {
 
-	static const string INPUT_IMAGE_PATHS[] = { "input_img.jpg", "input_img small.jpg", "input_img skrabance.jpg", "input_img.jpg","input_img.jpg","input_img.jpg","input_img.jpg","input_img small.jpg","input_img small.jpg" };
+	//static const string INPUT_IMAGE_PATHS[] = { "input_img.jpg", "input_img small.jpg", "input_img skrabance.jpg", "input_img.jpg","input_img.jpg","input_img.jpg","input_img.jpg","input_img small.jpg","input_img small.jpg" };
+	 //const string INPUT_IMAGE_PATHS[] = { "input_img 300x300.jpg"};
+	const string INPUT_IMAGE_PATHS[] = { "input_img 300x300.jpg", "input_img 600x700.jpg","input_img 1920x1200.jpg", "input_img 2000x2000.jpg" };
 
 	class Filter;
 	class TestBuilder;
+	class ImageFactory;
 	class Test
 	{
 		friend class TestBuilder;
@@ -43,6 +46,9 @@ namespace processing
 		uint replications_;
 		vector<string> fileNames_;
 		float epsilon_;
+		string pathForOutPut_;
+		Factory::OutputType outputType;
+
 	
 	public:
 		//excel generate command
@@ -69,7 +75,9 @@ namespace processing
 		static shared_ptr<Filter> get15x15Filter();
 		
 		static shared_ptr<Filter> get17x17Filter();
-		
+
+		static void saveRawImageIntoFile(const string& path ,vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results);
+		static void saveOutputIntoPicture(const string& path, vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results, bool cropped);
 
 	};
 
@@ -99,8 +107,11 @@ namespace processing
 
 		TestBuilder& setImagePaths(vector<string> imagePaths);
 
-
 		TestBuilder& setEpsilon(float epsilon);
+
+		TestBuilder& setOutputType(Factory::OutputType type);
+
+		TestBuilder& setOutputPath(string path);
 
 		Test build();
 

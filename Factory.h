@@ -109,14 +109,23 @@ namespace processing
 			NONE = 2
 		};
 
+		enum class OutputType
+		{
+			IMAGE = 0,
+			TEXTFILE = 1,
+			NONE = 2
+		};
+
+
 		static Factory::TypeOfConvolution fromStringToConvolutionType(string text);
 
 		static Factory::SimpleConvolution fromStringToSimpleRunnableType(string text);
 		
 		static Factory::MultiConvolution fromStringToMultiRunnableType(string text);
 		
-
 		static Factory::TestType fromStringToTestType(string text);
+
+		static Factory::OutputType fromStringToOutputType(string text);
 		
 
 		Factory(const Factory& other) = delete;

@@ -11,85 +11,18 @@
 #include "CpuCropped.h"
 #include "ImageFactory.h"
 #include <numeric>
+#include <fstream>
+#include <iomanip>
 
 namespace processing
 {
 
-	Test::Test():
+	Test::Test() :
 		epsilon_(0.001f),
 		replications_(1)
 	{}
 
 	vector<vector<shared_ptr<float>>> Test::testExtend()
-	{
-		vector<vector<shared_ptr<float>>> results;
-		vector<shared_ptr<ImageFactory>> images;
-		for (auto& filename : fileNames_)
-		{
-			images.push_back(make_shared<ImageFactory>(filename));
-		}
-		
-		TickMeter meter;
-		for (shared_ptr<Runnable> & runnable : runnables_)
-		{
-			double time(0);
-			results.push_back(vector<shared_ptr<float>>());
-			for (uint i = 0; i < replications_; i++)
-			{
-				meter.reset();
-				meter.start();
-				if (i == 0) 
-				{
-					runnable->run(images, filters_, results[results.size() - 1]);
-				}
-				else 
-				{
-					vector<shared_ptr<float>> result;
-					runnable->run(images, filters_, result);
-				}
-				meter.stop();
-				time += meter.getTimeMicro();
-			}
-
-			cout << runnable->getDescription() << ". Replications:  " << replications_ << ". Average time: " << (time / replications_) << endl;
-		}
-		if (runnables_.size() == 2)
-		{
-			vector<shared_ptr<float>>& resultsFirst = results[0];
-			vector<shared_ptr<float>>& resultsSecond = results[1];
-			size_t beginning = 0;
-			size_t end = filters_.size();
-			for (vector<shared_ptr<ImageFactory>>::size_type imageIndex = 0; imageIndex < images.size(); imageIndex++)
-			{
-				size_t pixels = images[imageIndex]->getNumPixels();
-				for (size_t filterIndex = beginning; filterIndex < end; filterIndex++)
-				{
-					shared_ptr<float> resultFirst = resultsFirst[filterIndex];
-					shared_ptr<float> resultSecond = resultsSecond[filterIndex];
-					cout << "bezim" << endl;
-					for (size_t j = 0; j < pixels; j++)
-					{
-						if ([&resultFirst, &resultSecond, j, this]() {
-							return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > epsilon_;
-						}())
-						{
-							cout << "-----------------------" << endl;
-							cout << "Index: " << j << ", epsilon: " << epsilon_ << endl;
-							cout << runnables_[0]->getDescription() << ": " << resultFirst.get()[j] << endl;
-							cout << runnables_[1]->getDescription() << ": " << resultSecond.get()[j] << endl;
-							cout << runnables_[0]->getDescription() << " - " << runnables_[1]->getDescription() << ": " << resultFirst.get()[j] - resultSecond.get()[j] << endl;
-							cout << "-----------------------" << endl;
-						}
-					}
-				}
-				beginning = end;
-				end += filters_.size();
-			}	
-		}
-		return results;
-	}
-
-	vector<vector<shared_ptr<float>>> Test::testCropped()
 	{
 		vector<vector<shared_ptr<float>>> results;
 		vector<shared_ptr<ImageFactory>> images;
@@ -131,6 +64,107 @@ namespace processing
 			for (vector<shared_ptr<ImageFactory>>::size_type imageIndex = 0; imageIndex < images.size(); imageIndex++)
 			{
 				size_t pixels = images[imageIndex]->getNumPixels();
+				for (size_t filterIndex = beginning; filterIndex < end; filterIndex++)
+				{
+					shared_ptr<float> resultFirst = resultsFirst[filterIndex];
+					shared_ptr<float> resultSecond = resultsSecond[filterIndex];
+					cout << "bezim" << endl;
+					for (size_t j = 0; j < pixels; j++)
+					{
+						if ([&resultFirst, &resultSecond, j, this]() {
+							return fabs(resultFirst.get()[j] - resultSecond.get()[j]) > epsilon_;
+						}())
+						{
+							cout << "-----------------------" << endl;
+							cout << "Index: " << j << ", epsilon: " << epsilon_ << endl;
+							cout << runnables_[0]->getDescription() << ": " << resultFirst.get()[j] << endl;
+							cout << runnables_[1]->getDescription() << ": " << resultSecond.get()[j] << endl;
+							cout << runnables_[0]->getDescription() << " - " << runnables_[1]->getDescription() << ": " << resultFirst.get()[j] - resultSecond.get()[j] << endl;
+							cout << "-----------------------" << endl;
+						}
+					}
+				}
+				beginning = end;
+				end += filters_.size();
+			}
+		}
+		if (outputType == Factory::OutputType::TEXTFILE)
+		{
+			vector<shared_ptr<float>>& result = results[0];
+			Test::saveRawImageIntoFile(pathForOutPut_, images, filters_, result);
+		}
+		else if (outputType == Factory::OutputType::IMAGE)
+		{
+			vector<shared_ptr<float>>& result = results[0];
+			saveOutputIntoPicture(pathForOutPut_, images, filters_, result, false);
+		}
+		return results;
+	}
+
+	vector<vector<shared_ptr<float>>> Test::testCropped()
+	{
+		vector<vector<shared_ptr<float>>> results;
+		vector<shared_ptr<ImageFactory>> images;
+		for (auto& filename : fileNames_)
+		{
+			images.push_back(make_shared<ImageFactory>(filename));
+		}
+
+		TickMeter meter;
+		for (shared_ptr<Runnable> & runnable : runnables_)
+		{
+			double time(0);
+			results.push_back(vector<shared_ptr<float>>());
+			for (uint i = 0; i < replications_; i++)
+			{
+				meter.reset();
+				meter.start();
+				if (i == 0)
+				{
+					runnable->run(images, filters_, results[results.size() - 1]);
+				}
+				else
+				{
+					vector<shared_ptr<float>> result;
+					runnable->run(images, filters_, result);
+				}
+				meter.stop();
+				time += meter.getTimeMicro();
+			}
+
+			cout << runnable->getDescription() << ". Replications:  " << replications_ << ". Average time: " << (time / replications_) << endl;
+		}
+		size_t columns = images[0]->getNumCols();
+		size_t rows = images[0]->getNumRows();
+		/*
+		timeIt([&results, columns, this, rows]()
+		{
+			vector<shared_ptr<float>>& resultsFirst = results[0];
+			for (size_t i = 0; i < resultsFirst.size(); i++)
+			{
+				shared_ptr<float> resultFirst = resultsFirst[i];
+				size_t range = (columns - (filters_[i]->getWidth() - 1)) * (rows - (filters_[i]->getWidth() - 1));
+				for (size_t j = 0; j < range; j++)
+				{
+					if (resultFirst.get()[j] == -1000000)
+					{
+						cout << "-11111111" << endl;
+					}
+				}
+			}
+		}, "Time access " + runnables_[0]->getDescription());
+		*/
+
+
+		if (runnables_.size() == 2)
+		{
+			vector<shared_ptr<float>>& resultsFirst = results[0];
+			vector<shared_ptr<float>>& resultsSecond = results[1];
+			size_t beginning = 0;
+			size_t end = filters_.size();
+			for (vector<shared_ptr<ImageFactory>>::size_type imageIndex = 0; imageIndex < images.size(); imageIndex++)
+			{
+				size_t pixels = images[imageIndex]->getNumPixels();
 				int columns = images[imageIndex]->getNumCols();
 				int rows = images[imageIndex]->getNumRows();
 
@@ -160,12 +194,22 @@ namespace processing
 				end += filters_.size();
 			}
 		}
+		if (outputType == Factory::OutputType::TEXTFILE)
+		{
+			vector<shared_ptr<float>>& result = results[0];
+			Test::saveRawImageIntoFile(pathForOutPut_, images, filters_, result);
+		}
+		else if (outputType == Factory::OutputType::IMAGE) 
+		{
+			vector<shared_ptr<float>>& result = results[0];
+			saveOutputIntoPicture(pathForOutPut_, images, filters_, result, true);
+		}
 		return results;
 	}
 
 	void Test::run()
 	{
-		if (runnables_.size() == 1) 
+		if (runnables_.size() == 1)
 		{
 			shared_ptr<Runnable> runnable = runnables_[0];
 			if (runnable->isMulti())
@@ -182,7 +226,7 @@ namespace processing
 				testCropped();
 			}
 		}
-		else if (runnables_.size() == 2) 
+		else if (runnables_.size() == 2)
 		{
 			auto runnable1 = runnables_[0];
 			auto runnable2 = runnables_[1];
@@ -209,7 +253,7 @@ namespace processing
 				throw std::runtime_error("One runnable is cropped and other extend!");
 			}
 		}
-		else 
+		else
 		{
 			throw std::runtime_error("Too many runables, maximum is 2");
 		}
@@ -234,19 +278,38 @@ namespace processing
 			.addFilter(Test::get11x11Filter())
 			.addFilter(Test::get13x13Filter())
 			.addFilter(Test::get15x15Filter());
-		if (runnable->isMulti()) 
-		{
-			std::cerr << runnable->getDescription() << " is for multi convolution, not simple!" << endl;
-			return;
-		}
-		if (!runnable->isCropped())
-		{
-			builder.build().testExtend();
-		}
-		else
-		{
-			builder.build().testCropped();
-		}
+		//builder.build().testCropped();
+
+
+		builder.setFilters({ Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter(), Test::get1x1Filter() }).build().testCropped();
+
+		//builder.setFilters({ Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter(), Test::get3x3Filter() }).build().testCropped();
+
+		//builder.setFilters({ Test::get5x5Filter(), Test::get5x5Filter(), Test::get5x5Filter(), Test::get5x5Filter(), Test::get5x5Filter(), Test::get5x5Filter(), Test::get5x5Filter(), Test::get5x5Filter(), Test::get5x5Filter(), Test::get5x5Filter() }).build().testCropped();
+
+
+		//builder.setFilters({ Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter(), Test::get7x7Filter() }).build().testCropped();
+
+		//builder.setFilters({ Test::get9x9Filter(), Test::get9x9Filter(), Test::get9x9Filter() }).build().testCropped();
+
+		//.setFilters({ Test::get11x11Filter(), Test::get11x11Filter() }).build().testCropped();
+
+		//builder.setFilters({ Test::get13x13Filter() }).build().testCropped();
+
+		//builder.setFilters({ Test::get15x15Filter()  }).build().testCropped();
+
+
+		/*
+		builder.setFilters({ Test::get1x1Filter() }).build().testCropped();
+		builder.setFilters({ Test::get3x3Filter() }).build().testCropped();
+		builder.setFilters({ Test::get5x5Filter() }).build().testCropped();
+		builder.setFilters({ Test::get7x7Filter() }).build().testCropped();
+		builder.setFilters({ Test::get9x9Filter() }).build().testCropped();
+		builder.setFilters({ Test::get11x11Filter() }).build().testCropped();
+		builder.setFilters({ Test::get13x13Filter() }).build().testCropped();
+		builder.setFilters({ Test::get15x15Filter() }).build().testCropped();
+		*/
+
 	}
 
 	void Test::testAgainstEachOther(shared_ptr<Runnable> runnable1, shared_ptr<Runnable> runnable2, uint replications)
@@ -259,16 +322,41 @@ namespace processing
 		builder
 			.setReplications(replications)
 			.addRunnable(runnable1)
-			.addRunnable(runnable2)
-			.addFilter(Test::get1x1Filter())
+			//.addRunnable(runnable2)
 			.addFilter(Test::get3x3Filter())
-			.addFilter(Test::get5x5Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get3x3Filter())
+			.addFilter(Test::get3x3Filter())
+
+
 			.addFilter(Test::get7x7Filter())
+			.addFilter(Test::get7x7Filter())
+			.addFilter(Test::get7x7Filter())
+			.addFilter(Test::get7x7Filter())
+
 			.addFilter(Test::get9x9Filter())
+			.addFilter(Test::get9x9Filter())
+			.addFilter(Test::get9x9Filter())
+
+
 			.addFilter(Test::get11x11Filter())
+			.addFilter(Test::get11x11Filter())
+
+
+
 			.addFilter(Test::get13x13Filter())
+
 			.addFilter(Test::get15x15Filter())
-			.addFilter(Test::get1x1Filter())
+
+			;
+		/*
+		.addFilter(Test::get1x1Filter())
 			.addFilter(Test::get3x3Filter())
 			.addFilter(Test::get5x5Filter())
 			.addFilter(Test::get7x7Filter())
@@ -276,6 +364,7 @@ namespace processing
 			.addFilter(Test::get11x11Filter())
 			.addFilter(Test::get13x13Filter())
 			.addFilter(Test::get15x15Filter());
+		*/
 		if (runnable1->isMulti())
 		{
 			std::cerr << runnable1->getDescription() << " is for multi convolution, not simple!" << endl;
@@ -294,7 +383,7 @@ namespace processing
 		{
 			builder.build().testCropped();
 		}
-		else 
+		else
 		{
 			std::cerr << "One runnable is cropped and other extend!" << endl;
 		}
@@ -319,21 +408,21 @@ namespace processing
 			.addFilter(Test::get11x11Filter())
 			.addFilter(Test::get13x13Filter())
 			.addFilter(Test::get15x15Filter());
-			if (runnable->isMulti())
-			{
-				std::cerr << runnable->getDescription() << " is for multi convolution, not simple!" << endl;
-				return;
-			}
-			if (!runnable->isCropped()) 
-			{
-				builder.addRunnable(make_shared<CpuSlowConvolution>());
-				builder.build().testExtend();
-			}
-			else 
-			{
-				builder.addRunnable(make_shared<CpuCropped>());
-				builder.build().testCropped();
-			}
+		if (runnable->isMulti())
+		{
+			std::cerr << runnable->getDescription() << " is for multi convolution, not simple!" << endl;
+			return;
+		}
+		if (!runnable->isCropped())
+		{
+			builder.addRunnable(make_shared<CpuSlowConvolution>());
+			builder.build().testExtend();
+		}
+		else
+		{
+			builder.addRunnable(make_shared<CpuCropped>());
+			builder.build().testCropped();
+		}
 	}
 
 
@@ -341,7 +430,7 @@ namespace processing
 	{
 		TestBuilder builder;
 		vector<shared_ptr<Filter>> filters = { Test::get3x3Filter() , Test::get5x5Filter(), Test::get7x7Filter() };
-		
+
 	}
 
 
@@ -597,6 +686,96 @@ namespace processing
 		return filter;
 	}
 
+	void Test::saveRawImageIntoFile(const string& path, vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results)
+	{
+		try
+		{
+			ofstream outputFile(path);
+			if (outputFile.is_open()) 
+			{
+				cout << "Saving output..." << endl;
+				size_t beginning = 0;
+				size_t end = filters.size();
+				outputFile << "Filter count: " << filters.size() << "\n";
+				outputFile << "Images count: " << images.size() << "\n";
+				for (vector<shared_ptr<ImageFactory>>::size_type imageIndex = 0; imageIndex < images.size(); imageIndex++)
+				{
+					size_t pixels = images[imageIndex]->getNumPixels();
+					int columns = images[imageIndex]->getNumCols();
+					int rows = images[imageIndex]->getNumRows();
+					outputFile << "Image " << imageIndex + 1 << ", columns: " << columns << ", rows: " << rows << "\n";
+					for (size_t filterIndex = beginning, filterRealIndex = 0; filterIndex < end; filterIndex++, filterRealIndex++)
+					{
+						shared_ptr<float> result = results[filterIndex];
+						float* resultPointer = result.get();
+						shared_ptr<Filter> filter = filters[filterRealIndex];
+						int filterWidth = filter->getWidth();
+						size_t range = (columns - (filterWidth - 1)) * (rows - (filterWidth - 1));
+						outputFile << "Filter width: " << filterWidth << "\n";
+						outputFile << "Filter values: " << "\n";
+						const float* filterValues = filter->getFilter();
+						for (int i = 0; i < filterWidth; i++)
+						{
+							for (int j = 0; j < filterWidth; j++)
+							{
+								outputFile << setw(10) << filterValues[i* filterWidth + j];
+							}
+							outputFile << "\n";
+						}
+						for (size_t j = 0; j < range; ++j)
+						{
+							outputFile << resultPointer[j] << "\n";
+						}
+						outputFile.flush();
+					}
+					beginning = end;
+					end += filters.size();
+				}
+				outputFile.close();
+			}
+			else 
+			{
+				std::cerr << "Could not open file for writing" << endl;
+			}
+
+		}
+		catch (const std::exception& e)
+		{
+			std::cerr << "Error writing to file: " << e.what() << endl;
+		}
+	}
+
+	void Test::saveOutputIntoPicture(const string & path, vector<shared_ptr<ImageFactory>>& images, vector<shared_ptr<Filter>>& filters, vector<shared_ptr<float>>& results, bool cropped)
+	{
+		size_t beginning = 0;
+		size_t end = filters.size();
+		cout << "Saving images..." << endl;
+		for (vector<shared_ptr<ImageFactory>>::size_type imageIndex = 0; imageIndex < images.size(); imageIndex++)
+		{
+			size_t pixels = images[imageIndex]->getNumPixels();
+			int columns = images[imageIndex]->getNumCols();
+			int rows = images[imageIndex]->getNumRows();
+			for (size_t filterIndex = beginning, filterRealIndex = 0; filterIndex < end; filterIndex++, filterRealIndex++)
+			{
+				string filename =  "Image" + to_string(imageIndex + 1) + "filter" + to_string(filterRealIndex + 1) + ".jpg";
+				int filterWidth = filters[filterRealIndex]->getWidth();
+				if (cropped) 
+				{
+					ImageFactory::saveImage(filename, columns, rows, results[filterIndex].get(), true, filterWidth);
+				}
+				else 
+				{
+					ImageFactory::saveImage(filename, columns, rows, results[filterIndex].get(), false);
+				}
+
+
+			}
+			beginning = end;
+			end += filters.size();
+		}
+	}
+
+
 	TestBuilder& TestBuilder::addFilter(shared_ptr<Filter> filter)
 	{
 		test_.filters_.push_back(filter);
@@ -642,6 +821,18 @@ namespace processing
 	TestBuilder& TestBuilder::setEpsilon(float epsilon)
 	{
 		test_.epsilon_ = epsilon;
+		return *this;
+	}
+
+	TestBuilder & TestBuilder::setOutputType(Factory::OutputType type)
+	{
+		test_.outputType = type;
+		return *this;
+	}
+
+	TestBuilder & TestBuilder::setOutputPath(string path)
+	{
+		test_.pathForOutPut_ = path;
 		return *this;
 	}
 
